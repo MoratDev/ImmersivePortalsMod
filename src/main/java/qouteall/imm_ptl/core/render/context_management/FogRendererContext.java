@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.render.context_management;
 
+import java.lang.invoke.MethodHandles;
 import net.minecraft.util.profiling.Profiler;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -33,19 +34,41 @@ public class FogRendererContext {
     
     public static StaticFieldsSwappingManager<FogRendererContext> swappingManager;
     
+    /**
+     * Called from the static initializer that the mixin adds into {@link FogRenderer}.
+     */
     public static void init() {
-        //load the class and apply mixin
-        FogRenderer.class.hashCode();
-        
         swappingManager = new StaticFieldsSwappingManager<>(
             copyContextFromObject, copyContextToObject, false,
             FogRendererContext::new
         );
-        
-        
     }
-    
+
+    /**
+     * {@link #swappingManager} is created when {@link FogRenderer} gets initialized.
+     * Since 1.21.2 vanilla first uses FogRenderer when rendering the world,
+     * which is later than the first use of the fog context.
+     * (Referencing the class object does not initialize a class.)
+     */
+    public static void ensureInitialized() {
+        if (swappingManager == null) {
+            try {
+                MethodHandles.lookup().ensureInitialized(FogRenderer.class);
+            }
+            catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+
+            if (swappingManager == null) {
+                throw new IllegalStateException(
+                    "FogRendererContext is not initialized. The mixin of FogRenderer is not applied."
+                );
+            }
+        }
+    }
+
     public static void update() {
+        ensureInitialized();
         swappingManager.setOuterDimension(RenderStates.originalPlayerDimension);
         swappingManager.resetChecks();
         if (ClientWorldLoader.getIsInitialized()) {
@@ -66,6 +89,7 @@ public class FogRendererContext {
     public static Vec3 getFogColorOf(
         ClientLevel destWorld, Vec3 pos
     ) {
+        ensureInitialized();
         Minecraft client = Minecraft.getInstance();
         
         Profiler.get().push("get_fog_color");
@@ -112,6 +136,7 @@ public class FogRendererContext {
     }
     
     public static void onPlayerTeleport(ResourceKey<Level> from, ResourceKey<Level> to) {
+        ensureInitialized();
         swappingManager.updateOuterDimensionAndChangeContext(to);
     }
     
