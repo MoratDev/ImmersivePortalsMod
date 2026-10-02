@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.teleportation;
 
+import net.minecraft.util.profiling.Profiler;
 import com.mojang.logging.LogUtils;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -139,7 +140,7 @@ public class ClientTeleportationManager {
             return;
         }
         
-        client.getProfiler().push("ip_teleport");
+        Profiler.get().push("ip_teleport");
         
         ClientPortalAnimationManagement.foreachCustomAnimatedPortals(
             portal -> {
@@ -199,7 +200,7 @@ public class ClientTeleportationManager {
         lastRecordStableTickTime = StableClientTimer.getStableTickTime();
         lastRecordStablePartialTicks = StableClientTimer.getStablePartialTicks();
         
-        client.getProfiler().pop();
+        Profiler.get().pop();
     }
     
     private static record TeleportationRec(
@@ -291,9 +292,9 @@ public class ClientTeleportationManager {
             Portal portal = teleportation.portal();
             Vec3 collidingPos = teleportation.worldCollisionPoint();
             
-            client.getProfiler().push("portal_teleport");
+            Profiler.get().push("portal_teleport");
             teleportPlayer(teleportation, partialTicks);
-            client.getProfiler().pop();
+            Profiler.get().pop();
             
             boolean allowOverlappedTeleport = portal.respectParallelOrientedPortal();
             
@@ -634,7 +635,7 @@ public class ClientTeleportationManager {
             return;
         }
         
-        Vec3 levitationVec = Vec3.atLowerCornerOf(levitationDir.getNormal());
+        Vec3 levitationVec = Vec3.atLowerCornerOf(levitationDir.getUnitVec3i());
         
         Vec3 offset = levitationVec.scale(delta);
         

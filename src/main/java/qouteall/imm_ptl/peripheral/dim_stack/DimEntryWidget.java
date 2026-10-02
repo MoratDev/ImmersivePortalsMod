@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.peripheral.dim_stack;
 
+import net.minecraft.client.renderer.RenderType;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -120,6 +121,7 @@ public class DimEntryWidget extends ContainerObjectSelectionList.Entry<DimEntryW
             }
             
             guiGraphics.blit(
+                RenderType::guiTextured,
                 dimIconPath, 0, 0, 0.0F, 0.0F,
                 iconLen, iconLen,
                 iconLen, iconLen

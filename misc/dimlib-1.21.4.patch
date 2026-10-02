@@ -1,0 +1,78 @@
+diff --git a/build.gradle b/build.gradle
+index 03a8fc8..39ed5ea 100644
+--- a/build.gradle
++++ b/build.gradle
+@@ -1,5 +1,5 @@
+ plugins {
+-	id 'fabric-loom' version '1.8-SNAPSHOT'
++	id 'fabric-loom' version '1.9-SNAPSHOT'
+ 	id 'maven-publish'
+ 
+ 	id "me.modmuss50.mod-publish-plugin" version "0.3.5"
+@@ -34,7 +34,7 @@ dependencies {
+ 		officialMojangMappings() {
+ 			setNameSyntheticMembers(false)
+ 		}
+-		parchment("org.parchmentmc.data:parchment-1.20.1:2023.09.03")
++		parchment("org.parchmentmc.data:parchment-1.21.4:2025.03.23")
+ 	}
+ 
+ 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+diff --git a/gradle.properties b/gradle.properties
+index 3e4ba57..a08f451 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -2,19 +2,19 @@
+ org.gradle.jvmargs=-Xmx1G
+ org.gradle.parallel=true
+ 
+-modmenu_version=12.0.0-beta.1
+-midnightlib_version=1.6.4-fabric
++modmenu_version=13.0.4
++midnightlib_version=1.7.3+1.21.4-fabric
+ 
+ mod_version=1.1.0
+ maven_group=qouteall.dimlib
+ archives_base_name=dimlib
+ 
+ # don't forget to update this if branch changes
+-git_branch=1.21.3
++git_branch=port/1.21.4
+ 
+-minecraft_version=1.21.3
+-yarn_mappings=1.21.3+build.2
+-loader_version=0.16.9
++minecraft_version=1.21.4
++yarn_mappings=1.21.4+build.8
++loader_version=0.16.14
+ 
+ # Fabric API
+-fabric_version=0.110.0+1.21.3
+\ No newline at end of file
++fabric_version=0.119.4+1.21.4
+\ No newline at end of file
+diff --git a/gradle/wrapper/gradle-wrapper.properties b/gradle/wrapper/gradle-wrapper.properties
+index df97d72..e18bc25 100644
+--- a/gradle/wrapper/gradle-wrapper.properties
++++ b/gradle/wrapper/gradle-wrapper.properties
+@@ -1,6 +1,6 @@
+ distributionBase=GRADLE_USER_HOME
+ distributionPath=wrapper/dists
+-distributionUrl=https\://services.gradle.org/distributions/gradle-8.10.2-bin.zip
++distributionUrl=https\://services.gradle.org/distributions/gradle-8.12.1-bin.zip
+ networkTimeout=10000
+ validateDistributionUrl=true
+ zipStoreBase=GRADLE_USER_HOME
+diff --git a/src/main/resources/fabric.mod.json b/src/main/resources/fabric.mod.json
+index fc0bf28..b6a4cf7 100644
+--- a/src/main/resources/fabric.mod.json
++++ b/src/main/resources/fabric.mod.json
+@@ -31,7 +31,7 @@
+ 	],
+ 	"depends": {
+ 		"fabricloader": ">=0.15.0",
+-		"minecraft": ["1.21.3"],
++		"minecraft": ["1.21.4"],
+ 		"java": ">=17",
+ 		"fabric-api": "*"
+ 	},

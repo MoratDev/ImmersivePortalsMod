@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.portal;
 
+import qouteall.imm_ptl.core.McHelper;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
@@ -10,7 +11,7 @@ import org.joml.Quaterniond;
 import qouteall.q_misc_util.my_util.DQuaternion;
 
 public class Mirror extends Portal {
-    public static final EntityType<Mirror> ENTITY_TYPE = Portal.createPortalEntityType(Mirror::new);
+    public static final EntityType<Mirror> ENTITY_TYPE = Portal.createPortalEntityType(Mirror::new, McHelper.newResourceLocation("immersive_portals", "mirror"));
     
     public Mirror(EntityType<?> entityType, Level world) {
         super(entityType, world);

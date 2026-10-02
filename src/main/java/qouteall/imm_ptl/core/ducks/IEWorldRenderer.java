@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.ducks;
 
+import java.util.List;
 import com.mojang.blaze3d.vertex.PoseStack;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -37,6 +38,10 @@ public interface IEWorldRenderer {
     void portal_fullyDispose();
     
     void portal_setChunkInfoList(ObjectArrayList<SectionRenderDispatcher.RenderSection> arg);
-    
+
+    List<Entity> ip_getVisibleEntities();
+
+    void ip_setVisibleEntities(List<Entity> arg);
+
     ObjectArrayList<SectionRenderDispatcher.RenderSection> portal_getChunkInfoList();
 }

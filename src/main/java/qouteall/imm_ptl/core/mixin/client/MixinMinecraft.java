@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.mixin.client;
 
+import net.minecraft.util.profiling.Profiler;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.blaze3d.pipeline.RenderTarget;
@@ -52,9 +53,6 @@ public abstract class MixinMinecraft implements IEMinecraftClient {
     
     @Shadow
     private static int fps;
-    
-    @Shadow
-    public abstract ProfilerFiller getProfiler();
     
     @Shadow
     @Nullable
@@ -125,7 +123,7 @@ public abstract class MixinMinecraft implements IEMinecraftClient {
         )
     )
     private void onAfterClientTick(CallbackInfo ci) {
-        getProfiler().push("imm_ptl_client_tick");
+        Profiler.get().push("imm_ptl_client_tick");
         
         // including ticking remote worlds
         ClientWorldLoader.tick();
@@ -137,8 +135,8 @@ public abstract class MixinMinecraft implements IEMinecraftClient {
         ClientTeleportationManager.manageTeleportation(true);
         
         IPGlobal.POST_CLIENT_TICK_EVENT.invoker().run();
-        
-        getProfiler().pop();
+
+        Profiler.get().pop();
     }
     
     @Inject(

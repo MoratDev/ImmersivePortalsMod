@@ -56,10 +56,7 @@ public abstract class MixinCreateWorldScreen_CVB extends Screen implements IECre
         method = "<init>",
         at = @At("RETURN")
     )
-    private void onInitEnd(
-        Minecraft minecraft, Screen screen, WorldCreationContext worldCreationContext,
-        Optional<ResourceKey<WorldPreset>> optional, OptionalLong optionalLong, CallbackInfo ci
-    ) {
+    private void onInitEnd(CallbackInfo ci) {
         DimStackManagement.dimStackToApply = DimStackManagement.getDimStackPreset();
         if (DimStackManagement.dimStackToApply != null) {
             LOGGER.info("[ImmPtl] Applying dimension stack preset");

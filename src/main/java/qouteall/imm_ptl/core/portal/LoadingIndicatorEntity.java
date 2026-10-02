@@ -1,5 +1,10 @@
 package qouteall.imm_ptl.core.portal;
 
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.damagesource.DamageSource;
+import qouteall.imm_ptl.core.McHelper;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.registries.Registries;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricEntityTypeBuilder;
@@ -29,7 +34,10 @@ public class LoadingIndicatorEntity extends Entity {
             (EntityType.EntityFactory<LoadingIndicatorEntity>) LoadingIndicatorEntity::new
         ).dimensions(
             EntityDimensions.fixed(1, 1)
-        ).fireImmune().trackable(96, 20).build();
+        ).fireImmune().trackable(96, 20).build(ResourceKey.create(
+            Registries.ENTITY_TYPE,
+            McHelper.newResourceLocation("immersive_portals", "loading_indicator")
+        ));
     
     private static final EntityDataAccessor<Component> TEXT = SynchedEntityData.defineId(
         LoadingIndicatorEntity.class, EntityDataSerializers.COMPONENT
@@ -112,6 +120,16 @@ public class LoadingIndicatorEntity extends Entity {
         builder.define(BOX_HIGH_POS, BlockPos.ZERO);
     }
     
+    // In 1.21.1 it did not override Entity#hurt, which was not abstract.
+    // This is the same as the 1.21.1 default.
+    @Override
+    public boolean hurtServer(ServerLevel level, DamageSource damageSource, float amount) {
+        if (!isInvulnerableToBase(damageSource)) {
+            markHurt();
+        }
+        return false;
+    }
+
     @Override
     protected void readAdditionalSaveData(CompoundTag tag) {
     

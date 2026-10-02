@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.portal.nether_portal;
 
+import qouteall.imm_ptl.core.McHelper;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.core.Direction;
@@ -57,7 +58,7 @@ public class NetherPortalEntity extends BreakablePortalEntity {
     
     
     public static final EntityType<NetherPortalEntity> ENTITY_TYPE =
-        createPortalEntityType(NetherPortalEntity::new);
+        createPortalEntityType(NetherPortalEntity::new, McHelper.newResourceLocation("immersive_portals", "nether_portal_new"));
     
     public NetherPortalEntity(EntityType<?> entityType, Level world) {
         super(entityType, world);

@@ -191,26 +191,26 @@ public class AlternateDimensions {
     
     public static ChunkGenerator createSkylandGenerator(RegistryAccess rm, long seed) {
         return NormalSkylandGenerator.create(
-            rm.registryOrThrow(Registries.BIOME).asLookup(),
-            rm.registryOrThrow(Registries.DENSITY_FUNCTION).asLookup(),
-            rm.registryOrThrow(Registries.NOISE).asLookup(),
-            rm.registryOrThrow(Registries.NOISE_SETTINGS).asLookup(),
-            rm.registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST).asLookup(),
+            rm.lookupOrThrow(Registries.BIOME),
+            rm.lookupOrThrow(Registries.DENSITY_FUNCTION),
+            rm.lookupOrThrow(Registries.NOISE),
+            rm.lookupOrThrow(Registries.NOISE_SETTINGS),
+            rm.lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST),
             seed
         );
     }
     
     public static ChunkGenerator createErrorTerrainGenerator(long seed, RegistryAccess rm) {
         return ErrorTerrainGenerator.create(
-            rm.registryOrThrow(Registries.BIOME).asLookup(),
-            rm.registryOrThrow(Registries.NOISE_SETTINGS).asLookup()
+            rm.lookupOrThrow(Registries.BIOME),
+            rm.lookupOrThrow(Registries.NOISE_SETTINGS)
         );
     }
     
     public static ChunkGenerator createVoidGenerator(RegistryAccess rm) {
-        Registry<Biome> biomeRegistry = rm.registryOrThrow(Registries.BIOME);
+        Registry<Biome> biomeRegistry = rm.lookupOrThrow(Registries.BIOME);
         
-        Holder.Reference<Biome> plainsHolder = biomeRegistry.getHolderOrThrow(Biomes.PLAINS);
+        Holder.Reference<Biome> plainsHolder = biomeRegistry.getOrThrow(Biomes.PLAINS);
         
         FlatLevelGeneratorSettings flatChunkGeneratorConfig =
             new FlatLevelGeneratorSettings(

@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core;
 
+import net.minecraft.util.profiling.Profiler;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -397,7 +398,7 @@ public class ClientWorldLoader {
         
         isCreatingClientWorld = true;
         
-        CLIENT.getProfiler().push("create_world");
+        Profiler.get().push("create_world");
         
         int chunkLoadDistance = 3; // my own chunk manager doesn't need it
         
@@ -432,8 +433,8 @@ public class ClientWorldLoader {
             int simulationDistance = CLIENT.level.getServerSimulationDistance();
             
             Holder<DimensionType> dimensionType = registryManager
-                .registryOrThrow(Registries.DIMENSION_TYPE)
-                .getHolderOrThrow(dimensionTypeKey);
+                .lookupOrThrow(Registries.DIMENSION_TYPE)
+                .getOrThrow(dimensionTypeKey);
             
             // currently use a separated level data object
             // day time is not shared between worlds
@@ -449,10 +450,12 @@ public class ClientWorldLoader {
                 dimensionType,
                 chunkLoadDistance,
                 simulationDistance,// seems that client world does not use this
-                CLIENT::getProfiler,
                 worldRenderer,
                 CLIENT.level.isDebug(),
-                CLIENT.level.getBiomeManager().biomeZoomSeed
+                CLIENT.level.getBiomeManager().biomeZoomSeed,
+                // Since 1.21.2 the server tells the client the sea level in login and respawn packet.
+                // There is no such packet for a remote dimension, so use the current dimension's.
+                CLIENT.level.getSeaLevel()
             );
             
             // all worlds share the same map data map
@@ -478,7 +481,7 @@ public class ClientWorldLoader {
         }
         finally {
             isCreatingClientWorld = false;
-            CLIENT.getProfiler().pop();
+            Profiler.get().pop();
         }
         
         CLIENT_WORLD_LOAD_EVENT.invoker().accept(newWorld);
@@ -613,13 +616,13 @@ public class ClientWorldLoader {
             LocalPlayer player = Minecraft.getInstance().player;
             assert player != null;
             RegistryAccess registryAccess = player.connection.registryAccess();
-            Registry<Biome> biomes = registryAccess.registryOrThrow(Registries.BIOME);
+            Registry<Biome> biomes = registryAccess.lookupOrThrow(Registries.BIOME);
             
             for (Map.Entry<String, Integer> entry : idMap.entrySet()) {
                 ResourceLocation id = McHelper.newResourceLocation(entry.getKey());
                 int expectedId = entry.getValue();
                 
-                if (biomes.getId(biomes.get(id)) != expectedId) {
+                if (biomes.getId(biomes.getValue(id)) != expectedId) {
                     LOGGER.error("Biome id mismatch: {} {}", id, expectedId);
                 }
             }

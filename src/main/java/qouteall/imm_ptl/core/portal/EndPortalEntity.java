@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.portal;
 
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.Minecraft;
@@ -41,7 +42,7 @@ public class EndPortalEntity extends Portal {
     private static final Logger LOGGER = LogManager.getLogger(EndPortalEntity.class);
     
     public static final EntityType<EndPortalEntity> ENTITY_TYPE =
-        createPortalEntityType(EndPortalEntity::new);
+        createPortalEntityType(EndPortalEntity::new, McHelper.newResourceLocation("immersive_portals", "end_portal"));
     public static final String PORTAL_TAG_VIEW_BOX = "view_box";
     
     private static final double BOX_PORTAL_SIDE_LEN = 3;
@@ -147,7 +148,7 @@ public class EndPortalEntity extends Portal {
         
         Vec3 portalCenter = thisSideBox.getCenter();
         
-        EndPortalEntity portal = EndPortalEntity.ENTITY_TYPE.create(world);
+        EndPortalEntity portal = EndPortalEntity.ENTITY_TYPE.create(world, EntitySpawnReason.TRIGGERED);
         assert portal != null;
         
         portal.setOriginPos(portalCenter);

@@ -1,10 +1,12 @@
 package qouteall.imm_ptl.peripheral;
 
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.registries.Registries;
 import com.mojang.serialization.MapCodec;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
-import net.fabricmc.fabric.api.object.builder.v1.block.FabricBlockSettings;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
@@ -32,10 +34,25 @@ import java.util.function.BiConsumer;
 public class PeripheralModMain {
     
     public static final Block portalHelperBlock =
-        new Block(FabricBlockSettings.of().noOcclusion().isRedstoneConductor((a, b, c) -> false));
-    
+        new Block(
+            BlockBehaviour.Properties.of()
+                .setId(ResourceKey.create(
+                    Registries.BLOCK,
+                    McHelper.newResourceLocation("immersive_portals", "portal_helper")
+                ))
+                .noOcclusion().isRedstoneConductor((a, b, c) -> false)
+        );
+
     public static final BlockItem portalHelperBlockItem =
-        new PortalHelperItem(PeripheralModMain.portalHelperBlock, new Item.Properties());
+        new PortalHelperItem(
+            PeripheralModMain.portalHelperBlock,
+            new Item.Properties()
+                .setId(ResourceKey.create(
+                    Registries.ITEM,
+                    McHelper.newResourceLocation("immersive_portals", "portal_helper")
+                ))
+                .useBlockDescriptionPrefix()
+        );
     
     public static final CreativeModeTab TAB =
         FabricItemGroup.builder()

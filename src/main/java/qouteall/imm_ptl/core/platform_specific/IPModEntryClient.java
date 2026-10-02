@@ -50,8 +50,8 @@ public class IPModEntryClient implements ClientModInitializer {
             GeneralBreakablePortal.ENTITY_TYPE
         }).forEach(
             entityType -> EntityRendererRegistry.register(
-                entityType,
-                (EntityRendererProvider) PortalEntityRenderer::new
+                (EntityType<? extends Portal>) entityType,
+                PortalEntityRenderer::new
             )
         );
         

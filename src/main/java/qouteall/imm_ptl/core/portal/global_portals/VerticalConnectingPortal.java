@@ -16,7 +16,7 @@ import java.util.function.Predicate;
 
 public class VerticalConnectingPortal extends GlobalTrackedPortal {
     public static final EntityType<VerticalConnectingPortal> ENTITY_TYPE =
-        createPortalEntityType(VerticalConnectingPortal::new);
+        createPortalEntityType(VerticalConnectingPortal::new, McHelper.newResourceLocation("immersive_portals", "end_floor_portal"));
     
     public static enum ConnectorType {
         ceil, floor

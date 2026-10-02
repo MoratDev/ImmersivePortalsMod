@@ -1,5 +1,11 @@
 package qouteall.imm_ptl.core.render;
 
+import net.minecraft.world.entity.Entity;
+import java.util.ArrayList;
+import java.util.List;
+import net.minecraft.client.renderer.FogParameters;
+import com.mojang.blaze3d.ProjectionType;
+import net.minecraft.util.profiling.Profiler;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
@@ -148,7 +154,6 @@ public class MyGameRenderer {
             ((IEWorldRenderer) oldWorldRenderer).portal_getChunkInfoList();
         HitResult oldCrosshairTarget = client.hitResult;
         Camera oldCamera = client.gameRenderer.getMainCamera();
-        PostChain oldTransparencyShader = ((IEWorldRenderer) worldRenderer).portal_getTransparencyShader();
         RenderBuffers oldRenderBuffers = ((IEWorldRenderer) worldRenderer).ip_getRenderBuffers();
         RenderBuffers oldClientRenderBuffers = client.renderBuffers();
         SectionBufferBuilderPack oldSectionRenderDispatcherFixedBuffers =
@@ -159,8 +164,14 @@ public class MyGameRenderer {
         // the projection matrix contains view bobbing.
         // the view bobbing is related with scale
         Matrix4f oldProjectionMatrix = RenderSystem.getProjectionMatrix();
+        ProjectionType oldProjectionType = RenderSystem.getProjectionType();
         Matrix4fStack oldModelViewStack = IERenderSystem.ip_getModelViewStack();
-        
+
+        // In 1.21.2+ the visible entity list is a field of LevelRenderer.
+        // The outer world rendering and the portal rendering may use the same LevelRenderer.
+        List<Entity> oldVisibleEntities = ((IEWorldRenderer) worldRenderer).ip_getVisibleEntities();
+        ((IEWorldRenderer) worldRenderer).ip_setVisibleEntities(new ArrayList<>());
+
         ObjectArrayList<SectionRenderDispatcher.RenderSection> newChunkInfoList =
             VisibleSectionDiscovery.takeList();
         ((IEWorldRenderer) oldWorldRenderer).portal_setChunkInfoList(newChunkInfoList);
@@ -213,11 +224,12 @@ public class MyGameRenderer {
         Object newSodiumContext = SodiumInterface.invoker.createNewContext(renderDistance);
         SodiumInterface.invoker.switchContextWithCurrentWorldRenderer(newSodiumContext);
         
-        ((IEWorldRenderer) worldRenderer).portal_setTransparencyShader(null);
-        
+        // In 1.21.1 it set the transparency post chain of world renderer to null here.
+        // Now it's done in MixinLevelRenderer (getTransparencyChain).
+
+        // In 1.21.2+ there is no separate model view matrix to apply. It's the top of the stack.
         IERenderSystem.ip_setModelViewStack(new Matrix4fStack(16));
-        RenderSystem.applyModelViewMatrix();
-        
+
         IrisInterface.invoker.setPipeline(worldRenderer, null);
         
         //update lightmap
@@ -227,11 +239,11 @@ public class MyGameRenderer {
         
         //invoke rendering
         invokeWrapper.accept(() -> {
-            client.getProfiler().push("render_portal_content");
+            Profiler.get().push("render_portal_content");
             client.gameRenderer.renderLevel(
-                client.getTimer()
+                client.getDeltaTracker()
             );
-            client.getProfiler().pop();
+            Profiler.get().pop();
         });
         
         SodiumInterface.invoker.switchContextWithCurrentWorldRenderer(newSodiumContext);
@@ -249,8 +261,8 @@ public class MyGameRenderer {
         client.hitResult = oldCrosshairTarget;
         ieGameRenderer.ip_setCamera(oldCamera);
         
-        ((IEWorldRenderer) worldRenderer).portal_setTransparencyShader(oldTransparencyShader);
-        
+        ((IEWorldRenderer) worldRenderer).ip_setVisibleEntities(oldVisibleEntities);
+
         FogRendererContext.swappingManager.popSwapping();
         
         ((IEWorldRenderer) oldWorldRenderer).portal_setChunkInfoList(oldChunkInfoList);
@@ -266,10 +278,9 @@ public class MyGameRenderer {
         
         ((IEWorldRenderer) worldRenderer).portal_setFrustum(oldFrustum);
         
-        client.gameRenderer.resetProjectionMatrix(oldProjectionMatrix);
+        RenderSystem.setProjectionMatrix(oldProjectionMatrix, oldProjectionType);
         IERenderSystem.ip_setModelViewStack(oldModelViewStack);
-        RenderSystem.applyModelViewMatrix();
-        
+
         IrisInterface.invoker.setPipeline(worldRenderer, irisPipeline);
         
         client.getEntityRenderDispatcher()
@@ -285,29 +296,24 @@ public class MyGameRenderer {
     }
     
     /**
-     * {@link LevelRenderer#renderLevel}
+     * In 1.21.1 it recomputed the fog by FogRenderer.setupFog() and FogRenderer.levelFogColor().
+     * Since 1.21.2 the fog parameters are computed once in {@link LevelRenderer#renderLevel}
+     * and passed to the render passes.
+     * After rendering portal content, the shader fog becomes the fog of portal content.
+     * It needs to be reset to the fog of the outer world.
+     *
+     * @param outerFog the fog parameters that vanilla computed for the world rendering that's going on
      */
-    @IPVanillaCopy
-    public static void resetFogState() {
-        Camera camera = client.gameRenderer.getMainCamera();
-        float g = client.gameRenderer.getRenderDistance();
-        
-        Vec3 cameraPos = camera.getPosition();
-        double x = cameraPos.x();
-        double y = cameraPos.y();
-        double z = cameraPos.z();
-        
-        boolean isFoggy = client.level.effects().isFoggyAt(Mth.floor(x), Mth.floor(y)) ||
-            client.gui.getBossOverlay().shouldCreateWorldFog();
-        
-        FogRenderer.setupFog(
-            camera, FogRenderer.FogMode.FOG_TERRAIN, Math.max(g, 32.0F), isFoggy, RenderStates.getPartialTick()
-        );
-        FogRenderer.levelFogColor();
+    public static void resetFogState(FogParameters outerFog) {
+        RenderSystem.setShaderFog(outerFog);
     }
-    
+
+    /**
+     * Since 1.21.2 vanilla does not store fog color in static fields.
+     * This refreshes the fog color tracked by {@link FogRendererContext}.
+     */
     public static void updateFogColor() {
-        FogRenderer.setupColor(
+        FogRenderer.computeFogColor(
             client.gameRenderer.getMainCamera(),
             RenderStates.getPartialTick(),
             client.level,

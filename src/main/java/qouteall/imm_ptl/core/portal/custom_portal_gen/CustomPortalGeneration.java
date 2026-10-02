@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.portal.custom_portal_gen;
 
+import net.minecraft.util.profiling.Profiler;
 import com.google.common.collect.Lists;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.Lifecycle;
@@ -262,9 +263,9 @@ public class CustomPortalGeneration {
             return false;
         }
         
-        world.getProfiler().push("custom_portal_gen_perform");
+        Profiler.get().push("custom_portal_gen_perform");
         boolean result = form.perform(this, world, startPos, toWorld, triggeringEntity);
-        world.getProfiler().pop();
+        Profiler.get().pop();
         return result;
     }
     

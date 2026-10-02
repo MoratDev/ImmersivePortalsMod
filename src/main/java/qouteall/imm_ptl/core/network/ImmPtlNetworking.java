@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.network;
 
+import net.minecraft.world.entity.EntitySpawnReason;
 import com.mojang.logging.LogUtils;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -203,7 +204,7 @@ public class ImmPtlNetworking {
             }
             else {
                 // spawn new portal
-                Entity entity = entityType.create(world);
+                Entity entity = entityType.create(world, EntitySpawnReason.LOAD);
                 Validate.notNull(entity, "Entity type is null");
                 
                 if (!(entity instanceof Portal portal)) {

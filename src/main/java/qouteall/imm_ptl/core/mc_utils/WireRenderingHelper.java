@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.mc_utils;
 
+import net.minecraft.client.renderer.ShapeRenderer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.api.EnvType;
@@ -61,7 +62,7 @@ public class WireRenderingHelper {
         float green = ((color >> 8) & 0xff) / 255f;
         float blue = (color & 0xff) / 255f;
         
-        LevelRenderer.renderLineBox(
+        ShapeRenderer.renderLineBox(
             matrixStack,
             vertexConsumer,
             -boxSize / 2,

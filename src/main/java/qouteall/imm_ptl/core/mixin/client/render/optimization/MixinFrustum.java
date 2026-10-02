@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.mixin.client.render.optimization;
 
+import org.joml.FrustumIntersection;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
@@ -73,14 +74,17 @@ public class MixinFrustum implements IEFrustum {
         portal_camZ = camZ;
     }
     
+    // Since 1.21.2 there are two overloads of cubeInFrustum (the other one delegates to this one)
+    // and it returns the result of FrustumIntersection#intersectAab instead of boolean:
+    // INSIDE (-2), INTERSECT (-1), or the index of the plane that culls the box (non-negative).
     @Inject(
-        method = "cubeInFrustum",
+        method = "cubeInFrustum(DDDDDD)I",
         at = @At("HEAD"),
         cancellable = true
     )
     private void onCubeInFrustum(
         double minX, double minY, double minZ, double maxX, double maxY, double maxZ,
-        CallbackInfoReturnable<Boolean> cir
+        CallbackInfoReturnable<Integer> cir
     ) {
         if (ip_canDetermineInvisibleWithCamCoord(
             (float) (minX - portal_camX),
@@ -90,7 +94,28 @@ public class MixinFrustum implements IEFrustum {
             (float) (maxY - portal_camY),
             (float) (maxZ - portal_camZ)
         )) {
-            cir.setReturnValue(false);
+            // outside
+            cir.setReturnValue(0);
+        }
+    }
+
+    // Since 1.21.2 vanilla culls sections using an octree.
+    // If an octree node is fully inside the frustum, vanilla does not test its children.
+    // A node that's fully inside the vanilla frustum may be partially culled by the portal frustum culling,
+    // so don't tell vanilla that it's fully inside when the portal frustum culling is working.
+    @Inject(
+        method = "cubeInFrustum(DDDDDD)I",
+        at = @At("RETURN"),
+        cancellable = true
+    )
+    private void onCubeInFrustumReturn(
+        double minX, double minY, double minZ, double maxX, double maxY, double maxZ,
+        CallbackInfoReturnable<Integer> cir
+    ) {
+        if (cir.getReturnValue() == FrustumIntersection.INSIDE) {
+            if (portal_frustumCuller != null && portal_frustumCuller.isActive()) {
+                cir.setReturnValue(FrustumIntersection.INTERSECT);
+            }
         }
     }
     

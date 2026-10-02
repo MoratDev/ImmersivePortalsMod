@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.8-SNAPSHOT'
+    id 'fabric-loom' version '1.10-SNAPSHOT'
 
     id 'maven-publish'
 
@@ -60,8 +60,38 @@ repositories {
 
 }
 
+// The client game test drives a real client to verify portal rendering and teleportation.
+// It's not a part of the released mod. Run it with: gradlew runClientGameTest
+sourceSets {
+    gametest {
+        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+    }
+}
+
 loom {
     accessWidenerPath = file("src/main/resources/imm_ptl.accesswidener")
+
+    mods {
+        immersive_portals {
+            sourceSet sourceSets.main
+        }
+        immersive_portals_gametest {
+            sourceSet sourceSets.gametest
+        }
+    }
+
+    runs {
+        clientGameTest {
+            client()
+            configName = "Client Game Test"
+            source sourceSets.gametest
+            vmArg "-Dfabric.client.gametest"
+            // Immersive Portals redirects packets, which the test framework's network synchronizer cannot follow
+            vmArg "-Dfabric.client.gametest.disableNetworkSynchronizer=true"
+            runDir "build/run/clientGameTest"
+        }
+    }
 }
 
 dependencies {
@@ -71,7 +101,7 @@ dependencies {
         officialMojangMappings() {
             setNameSyntheticMembers(false)
         }
-        parchment("org.parchmentmc.data:parchment-1.21:2024.07.28")
+        parchment("org.parchmentmc.data:parchment-1.21.4:2025.03.23")
     }
 
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
@@ -98,10 +128,10 @@ dependencies {
         transitive(false)
     }
 
-    modApi("com.github.iPortalTeam:DimLib:${dimlib_version}") {
+    modApi("qouteall.dimlib:DimLib:${dimlib_version}") {
         exclude(group: "net.fabricmc.fabric-api")
     }
-    include("com.github.iPortalTeam:DimLib:${dimlib_version}")
+    include("qouteall.dimlib:DimLib:${dimlib_version}")
 
     // put these into inner mod to reduce duplicate MC jar
 
@@ -149,6 +179,9 @@ dependencies {
     }
     testImplementation(platform('org.junit:junit-bom:5.10.0'))
     testImplementation('org.junit.jupiter:junit-jupiter')
+
+    // the mods that are used by runProductionClientGameTest (it uses the remapped jars, not the dev ones)
+    productionRuntimeMods "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 }
 
 processResources {
@@ -179,6 +212,33 @@ remapJar {
     afterEvaluate {
         archiveFileName = "${project.archives_base_name}-${project.mod_version}-mc${project.minecraft_version}-fabric.jar"
     }
+}
+
+// The client game test can also run in a production-like environment:
+// the official client jar, intermediary mappings and the remapped mod jar that gets released.
+// It finds the problems that only happen with the remapped jar (for example a mixin that's not remapped).
+// Run it with: gradlew runProductionClientGameTest
+tasks.register('gametestJar', Jar) {
+    from sourceSets.gametest.output
+    archiveClassifier = 'gametest-dev'
+    destinationDirectory = layout.buildDirectory.dir('devlibs')
+}
+
+tasks.register('remapGametestJar', net.fabricmc.loom.task.RemapJarTask) {
+    inputFile = tasks.gametestJar.archiveFile
+    classpath.from(sourceSets.gametest.compileClasspath)
+    addNestedDependencies = false
+    archiveClassifier = 'gametest'
+    destinationDirectory = layout.buildDirectory.dir('devlibs')
+}
+
+tasks.register('runProductionClientGameTest', net.fabricmc.loom.task.prod.ClientProductionRunTask) {
+    group = 'fabric'
+    description = 'Runs the client game test with the remapped mod jar in a production-like environment'
+    mods.from(tasks.remapGametestJar)
+    jvmArgs.add('-Dfabric.client.gametest')
+    jvmArgs.add('-Dfabric.client.gametest.disableNetworkSynchronizer=true')
+    runDir = layout.buildDirectory.dir('run/prodClientGameTest')
 }
 
 

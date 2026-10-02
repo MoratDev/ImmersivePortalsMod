@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.portal.global_portals;
 
+import net.minecraft.world.entity.EntitySpawnReason;
 import com.mojang.logging.LogUtils;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -248,9 +249,9 @@ public class GlobalPortalStorage extends SavedData {
     
     private static Portal readPortalFromTag(Level currWorld, CompoundTag compoundTag) {
         ResourceLocation entityId = McHelper.newResourceLocation(compoundTag.getString("entity_type"));
-        EntityType<?> entityType = BuiltInRegistries.ENTITY_TYPE.get(entityId);
+        EntityType<?> entityType = BuiltInRegistries.ENTITY_TYPE.getValue(entityId);
         
-        Entity e = entityType.create(currWorld);
+        Entity e = entityType.create(currWorld, EntitySpawnReason.LOAD);
         e.load(compoundTag);
         
         ((Portal) e).isGlobalPortal = true;

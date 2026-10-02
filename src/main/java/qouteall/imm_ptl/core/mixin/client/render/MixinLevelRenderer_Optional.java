@@ -32,20 +32,18 @@ public class MixinLevelRenderer_Optional {
     private Minecraft minecraft;
     
     //avoid translucent sort while rendering portal
-    @Redirect(
-        method = "renderSectionLayer",
-        at = @At(
-            value = "INVOKE",
-            target = "Lnet/minecraft/client/renderer/RenderType;translucent()Lnet/minecraft/client/renderer/RenderType;",
-            ordinal = 0
-        ),
+    // In 1.21.1 the translucent sort was in renderSectionLayer.
+    // In 1.21.2+ it's scheduled in this method, which is called from compileSections.
+    @Inject(
+        method = "scheduleTranslucentSectionResort",
+        at = @At("HEAD"),
+        cancellable = true,
         require = 0
     )
-    private RenderType redirectGetTranslucent() {
+    private void onScheduleTranslucentSectionResort(Vec3 cameraPosition, CallbackInfo ci) {
         if (PortalRendering.isRendering()) {
-            return null;
+            ci.cancel();
         }
-        return RenderType.translucent();
     }
     
     //the camera position is used for translucent sort
@@ -73,52 +71,17 @@ public class MixinLevelRenderer_Optional {
         method = "renderSectionLayer",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/client/renderer/ShaderInstance;apply()V"
+            target = "Lnet/minecraft/client/renderer/CompiledShaderProgram;apply()V"
         ),
         require = 0
     )
     private void onGetShaderInRenderingLayer(
-        RenderType renderType, double x, double y, double z, Matrix4f projectionMatrix, Matrix4f frustrumMatrix, CallbackInfo ci
+        RenderType renderType, double x, double y, double z, Matrix4f frustrumMatrix, Matrix4f projectionMatrix, CallbackInfo ci
     ) {
         FrontClipping.updateClippingEquationUniformForCurrentShader(false);
     }
     
-    // correct the position of updating ViewArea
-    @Redirect(
-        method = "setupRender",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/LocalPlayer;getX()D"),
-        require = 0
-    )
-    private double redirectGetXInSetupRender(LocalPlayer player) {
-        if (WorldRenderInfo.isRendering()) {
-            return WorldRenderInfo.getCameraPos().x;
-        }
-        return player.getX();
-    }
-    
-    // biolerplate
-    @Redirect(
-        method = "setupRender",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/LocalPlayer;getY()D"),
-        require = 0
-    )
-    private double redirectGetYInSetupRender(LocalPlayer player) {
-        if (WorldRenderInfo.isRendering()) {
-            return WorldRenderInfo.getCameraPos().y;
-        }
-        return player.getY();
-    }
-    
-    // biolerplate
-    @Redirect(
-        method = "setupRender",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/LocalPlayer;getZ()D"),
-        require = 0
-    )
-    private double redirectGetZInSetupRender(LocalPlayer player) {
-        if (WorldRenderInfo.isRendering()) {
-            return WorldRenderInfo.getCameraPos().z;
-        }
-        return player.getZ();
-    }
+    // In 1.21.1 setupRender used the player position to update ViewArea
+    // and it was redirected to the camera position here during portal rendering.
+    // Since 1.21.2 vanilla uses the camera position, so the 3 redirects are not needed.
 }

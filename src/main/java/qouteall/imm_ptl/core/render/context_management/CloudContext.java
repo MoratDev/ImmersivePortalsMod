@@ -1,9 +1,9 @@
 package qouteall.imm_ptl.core.render.context_management;
 
+import net.minecraft.client.CloudStatus;
 import com.mojang.blaze3d.vertex.VertexBuffer;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 import qouteall.imm_ptl.core.ClientWorldLoader;
 import qouteall.imm_ptl.core.IPCGlobal;
@@ -17,13 +17,19 @@ import java.util.ArrayList;
 public class CloudContext {
     
     //keys
-    public int lastCloudsBlockX = 0;
-    public int lastCloudsBlockY = 0;
-    public int lastCloudsBlockZ = 0;
+    // In 1.21.1 the keys were the cloud block x y z and the cloud color.
+    // Since 1.21.2 the cloud mesh depends on the cloud cell x z,
+    // whether the camera is above/inside/below the clouds, and the cloud status.
+    // The cloud color is applied when drawing.
+    public int cellX = 0;
+    public int cellZ = 0;
+    // the ordinal of CloudRenderer.RelativeCameraPos
+    public int relativeCameraPos = 0;
+    public CloudStatus cloudStatus = null;
     public ResourceKey<Level> dimension = null;
-    public Vec3 cloudColor;
-    
+
     public VertexBuffer cloudsBuffer = null;
+    public boolean cloudsBufferEmpty = false;
     
     public static final ArrayList<CloudContext> contexts = new ArrayList<>();
     
@@ -52,15 +58,15 @@ public class CloudContext {
     
     @Nullable
     public static CloudContext findAndTakeContext(
-        int lastCloudsBlockX, int lastCloudsBlockY, int lastCloudsBlockZ,
-        ResourceKey<Level> dimension, Vec3 cloudColor
+        int cellX, int cellZ, int relativeCameraPos,
+        CloudStatus cloudStatus, ResourceKey<Level> dimension
     ) {
         int i = Helper.indexOf(contexts, c ->
-            c.lastCloudsBlockX == lastCloudsBlockX &&
-                c.lastCloudsBlockY == lastCloudsBlockY &&
-                c.lastCloudsBlockZ == lastCloudsBlockZ &&
-                c.dimension == dimension &&
-                c.cloudColor.distanceToSqr(cloudColor) < 2.0E-4D
+            c.cellX == cellX &&
+                c.cellZ == cellZ &&
+                c.relativeCameraPos == relativeCameraPos &&
+                c.cloudStatus == cloudStatus &&
+                c.dimension == dimension
         );
         
         if (i == -1) {

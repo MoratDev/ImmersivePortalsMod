@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.render.context_management;
 
+import net.minecraft.util.profiling.Profiler;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -67,7 +68,7 @@ public class FogRendererContext {
     ) {
         Minecraft client = Minecraft.getInstance();
         
-        client.getProfiler().push("get_fog_color");
+        Profiler.get().push("get_fog_color");
         
         ClientLevel oldWorld = client.level;
         
@@ -88,23 +89,25 @@ public class FogRendererContext {
         ((IECamera) newCamera).portal_setFocusedEntity(client.cameraEntity);
         
         try {
-            FogRenderer.setupColor(
+            // In 1.21.2+ FogRenderer does not store the fog color in static fields.
+            // The fog color is tracked in MixinFogRenderer.
+            FogRenderer.computeFogColor(
                 newCamera,
                 RenderStates.getPartialTick(),
                 destWorld,
                 client.options.getEffectiveRenderDistance(),
                 client.gameRenderer.getDarkenWorldAmount(RenderStates.getPartialTick())
             );
-            
+
             Vec3 result = getCurrentFogColor.get();
-            
+
             return result;
         }
         finally {
             swappingManager.popSwapping();
             client.level = oldWorld;
             
-            client.getProfiler().pop();
+            Profiler.get().pop();
         }
     }
     

@@ -1,5 +1,10 @@
 package qouteall.imm_ptl.core.mixin.client.render;
 
+import net.minecraft.client.renderer.culling.Frustum;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.resource.ResourceHandle;
+import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraft.client.renderer.FogParameters;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.renderer.GameRenderer;
@@ -15,9 +20,15 @@ import qouteall.imm_ptl.core.IPCGlobal;
 @Mixin(value = LevelRenderer.class, priority = 900)
 public class MixinLevelRenderer_BeforeIris {
     // inject it after Iris, run before Iris
-    @Inject(method = "renderLevel", at = @At(value = "CONSTANT", args = "stringValue=translucent"))
+    // In 1.21.2+ it's in the lambda in addMainPass
+    @Inject(method = "method_62214", at = @At(value = "CONSTANT", args = "stringValue=translucent"))
     private void iris$beginTranslucents(
-        DeltaTracker deltaTracker, boolean bl, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f modelView, Matrix4f matrix4f2, CallbackInfo ci
+        FogParameters fogParameters, DeltaTracker deltaTracker, Camera camera, ProfilerFiller profilerFiller,
+        Matrix4f modelView, Matrix4f matrix4f2,
+        ResourceHandle<RenderTarget> resourceHandle, ResourceHandle<RenderTarget> resourceHandle2,
+        ResourceHandle<RenderTarget> resourceHandle3, ResourceHandle<RenderTarget> resourceHandle4,
+        boolean bl, Frustum frustum, ResourceHandle<RenderTarget> resourceHandle5,
+        CallbackInfo ci
     ) {
         IPCGlobal.renderer.onBeginIrisTranslucentRendering(modelView);
     }

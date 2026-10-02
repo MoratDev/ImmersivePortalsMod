@@ -1,5 +1,8 @@
 package qouteall.imm_ptl.core.portal;
 
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.Registries;
 import com.mojang.logging.LogUtils;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -84,15 +87,22 @@ public class Portal extends Entity implements
     PortalLike, IPEntityEventListenableEntity {
     private static final Logger LOGGER = LogUtils.getLogger();
     
-    public static final EntityType<Portal> ENTITY_TYPE = createPortalEntityType(Portal::new);
+    public static final EntityType<Portal> ENTITY_TYPE = createPortalEntityType(
+        Portal::new, McHelper.newResourceLocation("immersive_portals", "portal")
+    );
     
     public static final Event<Consumer<Portal>> CLIENT_PORTAL_ACCEPT_SYNC_EVENT =
         Helper.createConsumerEvent();
     public static final Event<Consumer<Portal>> CLIENT_PORTAL_SPAWN_EVENT =
         Helper.createConsumerEvent();
     
+    /**
+     * Since 1.21.2 an entity type must know its registry id when it is built.
+     * The id passed here must be the same id that the entity type is registered with.
+     */
     public static <T extends Portal> EntityType<T> createPortalEntityType(
-        EntityType.EntityFactory<T> constructor
+        EntityType.EntityFactory<T> constructor,
+        ResourceLocation id
     ) {
         return FabricEntityTypeBuilder.create(
                 MobCategory.MISC,
@@ -104,7 +114,7 @@ public class Portal extends Entity implements
             .trackRangeBlocks(96)
             .trackedUpdateRate(20)
             .forceTrackedVelocityUpdates(true)
-            .build();
+            .build(ResourceKey.create(Registries.ENTITY_TYPE, id));
     }
     
     private static final AABB NULL_BOX =
@@ -957,8 +967,20 @@ public class Portal extends Entity implements
         super.tick();
     }
     
+    // In 1.21.1 it did not override Entity#hurt, which was not abstract.
+    // This is the same as the 1.21.1 default.
     @Override
-    protected @NotNull AABB makeBoundingBox() {
+    public boolean hurtServer(ServerLevel level, DamageSource damageSource, float amount) {
+        if (!isInvulnerableToBase(damageSource)) {
+            markHurt();
+        }
+        return false;
+    }
+
+    // In 1.21.2+ the no-argument makeBoundingBox() is final
+    // and vanilla may ask for the bounding box in another position.
+    @Override
+    protected @NotNull AABB makeBoundingBox(Vec3 position) {
         if (axisW == null) {
             // it may be called when the portal is not yet initialized
             boundingBoxCache = null;
@@ -972,6 +994,13 @@ public class Portal extends Entity implements
             boundingBoxCache = getPortalShape()
                 .getBoundingBox(getThisSideState(), shouldLimitBoundingBox(), 0.2);
         }
+
+        Vec3 currentPos = position();
+        if (!position.equals(currentPos)) {
+            // the cache is only for current position
+            return boundingBoxCache.move(position.subtract(currentPos));
+        }
+
         return boundingBoxCache;
     }
     
@@ -1054,7 +1083,7 @@ public class Portal extends Entity implements
     }
     
     public Direction getApproximateFacingDirection() {
-        return Direction.getNearest(
+        return Direction.getApproximateNearest(
             getNormal().x, getNormal().y, getNormal().z
         );
     }
@@ -1653,11 +1682,11 @@ public class Portal extends Entity implements
     }
     
     public Direction getTransformedGravityDirection(Direction oldGravityDir) {
-        Vec3 oldGravityVec = Vec3.atLowerCornerOf(oldGravityDir.getNormal());
+        Vec3 oldGravityVec = Vec3.atLowerCornerOf(oldGravityDir.getUnitVec3i());
         
         Vec3 newGravityVec = transformLocalVecNonScale(oldGravityVec);
         
-        return Direction.getNearest(
+        return Direction.getApproximateNearest(
             newGravityVec.x, newGravityVec.y, newGravityVec.z
         );
     }

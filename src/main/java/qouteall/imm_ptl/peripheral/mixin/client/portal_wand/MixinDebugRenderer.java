@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.peripheral.mixin.client.portal_wand;
 
+import net.minecraft.client.renderer.culling.Frustum;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -21,6 +22,7 @@ public class MixinDebugRenderer {
     )
     private void onRender(
         PoseStack poseStack,
+        Frustum frustum,
         MultiBufferSource.BufferSource bufferSource,
         double camX, double camY, double camZ,
         CallbackInfo ci

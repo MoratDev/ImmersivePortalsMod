@@ -12,8 +12,9 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 public abstract class MixinProjectile extends MixinEntity {
     
     // make it recognize the owner in another dimension
+    // In 1.21.2+ the lookup is in findOwner
     @Redirect(
-        method = "getOwner",
+        method = "findOwner",
         at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/server/level/ServerLevel;getEntity(Ljava/util/UUID;)Lnet/minecraft/world/entity/Entity;"

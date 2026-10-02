@@ -1,13 +1,10 @@
 package qouteall.imm_ptl.core.platform_specific.mixin.common;
 
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.portal.DimensionTransition;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import qouteall.imm_ptl.core.IPPerServerInfo;
 import qouteall.imm_ptl.core.chunk_loading.ImmPtlChunkTracking;
@@ -16,28 +13,26 @@ import qouteall.imm_ptl.core.portal.custom_portal_gen.CustomPortalGenManager;
 
 @Mixin(ServerPlayer.class)
 public class MixinServerPlayerEntity_MA {
-    @Inject(method = "changeDimension", at = @At("HEAD"))
-    private void onChangeDimensionByVanilla(
-        DimensionTransition dimensionTransition, CallbackInfoReturnable<Entity> cir
-    ) {
-        ServerPlayer this_ = (ServerPlayer) (Object) this;
-        onBeforeDimensionTravel(this_);
-    }
-    
     // update chunk visibility data
-    @Inject(method = "Lnet/minecraft/server/level/ServerPlayer;teleportTo(Lnet/minecraft/server/level/ServerLevel;DDDFF)V", at = @At("HEAD"))
-    private void onTeleported(
-        ServerLevel targetWorld,
-        double x,
-        double y,
-        double z,
-        float yaw,
-        float pitch,
-        CallbackInfo ci
+    // In 1.21.1 it injected both changeDimension(DimensionTransition)
+    // and teleportTo(ServerLevel, double, double, double, float, float).
+    // Since 1.21.2 both of them go through teleport(TeleportTransition)
+    // (same-dimension teleport also goes through it).
+    @Inject(
+        method = "teleport(Lnet/minecraft/world/level/portal/TeleportTransition;)Lnet/minecraft/server/level/ServerPlayer;",
+        at = @At("HEAD")
+    )
+    private void onTeleportedByVanilla(
+        TeleportTransition teleportTransition, CallbackInfoReturnable<ServerPlayer> cir
     ) {
         ServerPlayer this_ = (ServerPlayer) (Object) this;
-        
-        if (this_.level() != targetWorld) {
+
+        if (this_.isRemoved()) {
+            // vanilla does nothing in this case
+            return;
+        }
+
+        if (this_.level() != teleportTransition.newLevel()) {
             onBeforeDimensionTravel(this_);
         }
     }

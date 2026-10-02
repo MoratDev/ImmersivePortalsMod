@@ -1,5 +1,9 @@
 package qouteall.imm_ptl.peripheral;
 
+import qouteall.imm_ptl.core.McHelper;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.registries.Registries;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
 import com.mojang.logging.LogUtils;
@@ -18,7 +22,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
@@ -93,7 +96,10 @@ public class CommandStickItem extends Item {
     }
     
     public static final CommandStickItem instance = new CommandStickItem(
-        new Item.Properties()
+        new Item.Properties().setId(ResourceKey.create(
+            Registries.ITEM,
+            McHelper.newResourceLocation("immersive_portals", "command_stick")
+        ))
     );
     
     public CommandStickItem(Properties settings) {
@@ -107,7 +113,7 @@ public class CommandStickItem extends Item {
     }
     
     @Override
-    public InteractionResultHolder<ItemStack> use(Level world, Player player, InteractionHand hand) {
+    public InteractionResult use(Level world, Player player, InteractionHand hand) {
         doUse(player, player.getItemInHand(hand));
         return super.use(world, player, hand);
     }
@@ -125,7 +131,7 @@ public class CommandStickItem extends Item {
                 return;
             }
             
-            CommandSourceStack commandSource = player.createCommandSourceStack().withPermission(2);
+            CommandSourceStack commandSource = ((ServerPlayer) player).createCommandSourceStack().withPermission(2);
             
             MinecraftServer server = player.getServer();
             assert server != null;
@@ -180,15 +186,16 @@ public class CommandStickItem extends Item {
         tooltip.add(Component.translatable("imm_ptl.command_stick").withStyle(ChatFormatting.GRAY));
     }
     
+    // in 1.21.1 this overrode getDescriptionId(ItemStack), which no longer exists
     @Override
-    public @NotNull String getDescriptionId(ItemStack stack) {
+    public @NotNull Component getName(ItemStack stack) {
         Data data = stack.get(COMPONENT_TYPE);
-        
+
         if (data == null) {
-            return "";
+            return Component.empty();
         }
-        
-        return data.nameTranslationKey;
+
+        return Component.translatable(data.nameTranslationKey);
     }
     
     public static void sendMessage(Player player, Component message) {

@@ -100,8 +100,8 @@ public abstract class MixinClientLevel implements IEClientWorld {
     )
     void onConstructed(
         ClientPacketListener clientPacketListener, ClientLevel.ClientLevelData clientLevelData,
-        ResourceKey resourceKey, Holder holder, int loadDistance, int j, Supplier supplier,
-        LevelRenderer levelRenderer, boolean bl, long l, CallbackInfo ci
+        ResourceKey resourceKey, Holder holder, int loadDistance, int j,
+        LevelRenderer levelRenderer, boolean bl, long l, int seaLevel, CallbackInfo ci
     ) {
         ClientLevel clientWorld = (ClientLevel) (Object) this;
         ClientChunkCache myClientChunkManager =

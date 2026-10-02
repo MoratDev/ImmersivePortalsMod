@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.chunk_loading;
 
+import net.minecraft.util.profiling.Profiler;
 import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -360,7 +361,7 @@ public class ImmPtlChunkTracking {
     }
     
     private static void tick(MinecraftServer server) {
-        server.getProfiler().push("portal_chunk_tracking");
+        Profiler.get().push("portal_chunk_tracking");
         
         boolean updates = false;
         long gameTime = server.overworld().getGameTime();
@@ -389,7 +390,7 @@ public class ImmPtlChunkTracking {
             dimTicketManager.tick(world);
         }
         
-        server.getProfiler().pop();
+        Profiler.get().pop();
         
         if (updates) {
             EntitySync.update(server);

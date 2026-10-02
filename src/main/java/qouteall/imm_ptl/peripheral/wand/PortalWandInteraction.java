@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.peripheral.wand;
 
+import net.minecraft.world.entity.EntitySpawnReason;
 import com.mojang.logging.LogUtils;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.nbt.CompoundTag;
@@ -236,7 +237,7 @@ public class PortalWandInteraction {
             }
         }
         
-        Portal portal = Portal.ENTITY_TYPE.create(McHelper.getServerWorld(firstSideDimension));
+        Portal portal = Portal.ENTITY_TYPE.create(McHelper.getServerWorld(firstSideDimension), EntitySpawnReason.TRIGGERED);
         Validate.notNull(portal);
         portal.setOriginPos(
             firstSideLeftBottom
@@ -816,7 +817,7 @@ public class PortalWandInteraction {
             return;
         }
         
-        Portal portal = Portal.ENTITY_TYPE.create(player.level());
+        Portal portal = Portal.ENTITY_TYPE.create(player.level(), EntitySpawnReason.TRIGGERED);
         assert portal != null;
         
         portal.readPortalDataFromNbt(copyingSession.portalData);

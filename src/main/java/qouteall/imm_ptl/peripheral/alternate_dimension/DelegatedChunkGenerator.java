@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.peripheral.alternate_dimension;
 
+import net.minecraft.world.level.Level;
 import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
@@ -55,8 +56,8 @@ public abstract class DelegatedChunkGenerator extends ChunkGenerator {
     }
     
     @Override
-    public void applyCarvers(WorldGenRegion worldGenRegion, long l, RandomState randomState, BiomeManager biomeManager, StructureManager structureManager, ChunkAccess chunkAccess, GenerationStep.Carving carving) {
-        delegate.applyCarvers(worldGenRegion, l, randomState, biomeManager, structureManager, chunkAccess, carving);
+    public void applyCarvers(WorldGenRegion worldGenRegion, long l, RandomState randomState, BiomeManager biomeManager, StructureManager structureManager, ChunkAccess chunkAccess) {
+        delegate.applyCarvers(worldGenRegion, l, randomState, biomeManager, structureManager, chunkAccess);
     }
     
     @Override
@@ -115,8 +116,8 @@ public abstract class DelegatedChunkGenerator extends ChunkGenerator {
     }
     
     @Override
-    public void createStructures(RegistryAccess registryAccess, ChunkGeneratorStructureState chunkGeneratorStructureState, StructureManager structureManager, ChunkAccess chunkAccess, StructureTemplateManager structureTemplateManager) {
-        super.createStructures(registryAccess, chunkGeneratorStructureState, structureManager, chunkAccess, structureTemplateManager);
+    public void createStructures(RegistryAccess registryAccess, ChunkGeneratorStructureState chunkGeneratorStructureState, StructureManager structureManager, ChunkAccess chunkAccess, StructureTemplateManager structureTemplateManager, ResourceKey<Level> dimension) {
+        super.createStructures(registryAccess, chunkGeneratorStructureState, structureManager, chunkAccess, structureTemplateManager, dimension);
     }
     
     @Override

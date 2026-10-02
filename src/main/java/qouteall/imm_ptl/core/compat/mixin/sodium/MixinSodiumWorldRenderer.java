@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.compat.mixin.sodium;
 
+import net.minecraft.client.renderer.FogParameters;
 import net.caffeinemc.mods.sodium.client.render.SodiumWorldRenderer;
 import net.caffeinemc.mods.sodium.client.render.viewport.Viewport;
 import net.minecraft.client.Camera;
@@ -18,7 +19,8 @@ public class MixinSodiumWorldRenderer {
         at = @At("HEAD")
     )
     private void onUpdateChunks(
-        Camera camera, Viewport viewport, boolean spectator, boolean updateChunksImmediately, CallbackInfo ci
+        Camera camera, Viewport viewport, FogParameters fogParameters,
+        boolean spectator, boolean updateChunksImmediately, CallbackInfo ci
     ) {
         SodiumInterface.frustumCuller = new FrustumCuller();
         Vec3 cameraPos = camera.getPosition();

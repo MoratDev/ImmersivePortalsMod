@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.mixin.client.render;
 
+import java.util.List;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
@@ -119,7 +120,12 @@ public abstract class MixinLevelRenderer implements IEWorldRenderer {
     @Shadow @Final private static Logger LOGGER;
     
     @Shadow private @Nullable RenderTarget entityOutlineTarget;
-    
+
+    @Shadow
+    @Final
+    @Mutable
+    private List<Entity> visibleEntities;
+
     @Inject(
         method = "method_62214", // the lambda in addMainPass
         at = @At(
@@ -146,10 +152,10 @@ public abstract class MixinLevelRenderer implements IEWorldRenderer {
         FogParameters fogParameters, DeltaTracker deltaTracker, Camera camera, ProfilerFiller profilerFiller, Matrix4f modelView, Matrix4f matrix4f2, ResourceHandle resourceHandle, ResourceHandle resourceHandle2, ResourceHandle resourceHandle3, ResourceHandle resourceHandle4, boolean bl, Frustum frustum, ResourceHandle resourceHandle5, CallbackInfo ci
     ) {
         IPCGlobal.renderer.onBeforeTranslucentRendering(modelView);
-        
+
         MyGameRenderer.updateFogColor();
-        MyGameRenderer.resetFogState();
-        
+        MyGameRenderer.resetFogState(fogParameters);
+
         MyGameRenderer.resetDiffuseLighting();
         
         FrontClipping.disableClipping();
@@ -176,7 +182,7 @@ public abstract class MixinLevelRenderer implements IEWorldRenderer {
         at = @At("RETURN")
     )
     private void onFinishRenderLevel(
-        GraphicsResourceAllocator graphicsResourceAllocator, DeltaTracker deltaTracker, boolean bl, Camera camera, GameRenderer gameRenderer, LightTexture lightTexture, Matrix4f matrix4f, Matrix4f matrix4f2, CallbackInfo ci
+        GraphicsResourceAllocator graphicsResourceAllocator, DeltaTracker deltaTracker, boolean bl, Camera camera, GameRenderer gameRenderer, Matrix4f matrix4f, Matrix4f matrix4f2, CallbackInfo ci
     ) {
         // make hand rendering normal
         Lighting.setupLevel();
@@ -366,7 +372,7 @@ public abstract class MixinLevelRenderer implements IEWorldRenderer {
         at = @At("HEAD")
     )
     private void beforeRenderingWeather(
-        FogParameters fogParameters, LightTexture lightTexture, float f, Vec3 vec3, int i, float g, CallbackInfo ci
+        FogParameters fogParameters, float f, Vec3 vec3, int i, float g, CallbackInfo ci
     ) {
         if (PortalRendering.isRendering()) {
             FrontClipping.setupInnerClipping(
@@ -382,13 +388,16 @@ public abstract class MixinLevelRenderer implements IEWorldRenderer {
         at = @At("RETURN")
     )
     private void afterRenderingWeather(
-        FogParameters fogParameters, LightTexture lightTexture, float f, Vec3 vec3, int i, float g, CallbackInfo ci
+        FogParameters fogParameters, float f, Vec3 vec3, int i, float g, CallbackInfo ci
     ) {
         if (PortalRendering.isRendering()) {
             FrontClipping.disableClipping();
             RenderStates.isRenderingPortalWeather = false;
         }
     }
+    
+    // In 1.21.1 there was a redirect here to avoid rendering glowing entities when rendering portal.
+    // It's now done in MixinMinecraft_Render (Minecraft#shouldEntityAppearGlowing).
     
     // sometimes we change renderDistance but we don't want to reload it
     @Inject(method = "allChanged", at = @At("HEAD"), cancellable = true)
@@ -441,24 +450,40 @@ public abstract class MixinLevelRenderer implements IEWorldRenderer {
         });
     }
     
-//    // vanilla clears translucentFramebuffer even when transparencyShader is null
-//    // it makes the framebuffer to be wrongly bound in fabulous mode
-//    @Redirect(
-//        method = "renderLevel",
-//        at = @At(
-//            value = "FIELD",
-//            target = "Lnet/minecraft/client/renderer/LevelRenderer;translucentTarget:Lcom/mojang/blaze3d/pipeline/RenderTarget;"
-//        )
-//    )
-//    private RenderTarget redirectTranslucentFramebuffer(LevelRenderer this_) {
-//        if (PortalRendering.isRendering()) {
-//            return null;
-//        }
-//        else {
-//            return translucentTarget;
-//        }
-//    }
-    
+    // correct the eye position for sky rendering
+    // In 1.21.1 it was in renderSky.
+    // In 1.21.2+ the sky color uses the main camera position (which is correct during portal rendering),
+    // only the dark disc check uses the player eye position.
+    @Redirect(
+        method = "shouldRenderDarkDisc",
+        at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/client/player/LocalPlayer;getEyePosition(F)Lnet/minecraft/world/phys/Vec3;"
+        )
+    )
+    private Vec3 redirectGetEyePositionInSkyRendering(LocalPlayer player, float partialTicks) {
+        if (WorldRenderInfo.isRendering()) {
+            return WorldRenderInfo.getCameraPos();
+        }
+        return player.getEyePosition(partialTicks);
+    }
+
+    // Don't use the transparency post chain (fabulous graphics) when rendering portal content.
+    // In 1.21.1 it temporarily set LevelRenderer#transparencyChain to null
+    // and redirected LevelRenderer#translucentTarget.
+    // Since 1.21.2 the render targets of fabulous mode are created
+    // in frame graph only when this method returns non-null.
+    @Inject(
+        method = "getTransparencyChain",
+        at = @At("HEAD"),
+        cancellable = true
+    )
+    private void onGetTransparencyChain(CallbackInfoReturnable<PostChain> cir) {
+        if (WorldRenderInfo.isRendering()) {
+            cir.setReturnValue(null);
+        }
+    }
+
     // if not in spectator mode, when the camera is in block chunk culling will cull chunks wrongly
     @ModifyVariable(
         method = "Lnet/minecraft/client/renderer/LevelRenderer;setupRender(Lnet/minecraft/client/Camera;Lnet/minecraft/client/renderer/culling/Frustum;ZZ)V",
@@ -564,7 +589,10 @@ public abstract class MixinLevelRenderer implements IEWorldRenderer {
     
     @Override
     public void portal_fullyDispose() {
-        // this is probably not needed in 1.21.3
+        // In 1.21.1 it released the transparency post chain and sky/star/cloud buffers.
+        // Since 1.21.2 LevelRenderer#close() releases the sky renderer and cloud renderer,
+        // and the transparency post chain is owned by ShaderManager.
+        // ClientWorldLoader calls close() before calling this.
     }
     
     @Override
@@ -575,5 +603,15 @@ public abstract class MixinLevelRenderer implements IEWorldRenderer {
     @Override
     public ObjectArrayList<SectionRenderDispatcher.RenderSection> portal_getChunkInfoList() {
         return visibleSections;
+    }
+
+    @Override
+    public List<Entity> ip_getVisibleEntities() {
+        return visibleEntities;
+    }
+
+    @Override
+    public void ip_setVisibleEntities(List<Entity> arg) {
+        visibleEntities = arg;
     }
 }

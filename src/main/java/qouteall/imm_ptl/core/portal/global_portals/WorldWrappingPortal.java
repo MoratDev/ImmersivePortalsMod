@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.portal.global_portals;
 
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -23,7 +24,7 @@ import java.util.stream.Collectors;
 
 public class WorldWrappingPortal extends GlobalTrackedPortal {
     public static final EntityType<WorldWrappingPortal> ENTITY_TYPE =
-        createPortalEntityType(WorldWrappingPortal::new);
+        createPortalEntityType(WorldWrappingPortal::new, McHelper.newResourceLocation("immersive_portals", "border_portal"));
     
     public boolean isInward = true;
     public int zoneId = -1;
@@ -59,7 +60,7 @@ public class WorldWrappingPortal extends GlobalTrackedPortal {
         int zoneId,
         boolean isInward
     ) {
-        WorldWrappingPortal portal = WorldWrappingPortal.ENTITY_TYPE.create(serverWorld);
+        WorldWrappingPortal portal = WorldWrappingPortal.ENTITY_TYPE.create(serverWorld, EntitySpawnReason.TRIGGERED);
         portal.isInward = isInward;
         portal.zoneId = zoneId;
         
@@ -87,8 +88,8 @@ public class WorldWrappingPortal extends GlobalTrackedPortal {
         portal.setPos(center.x, center.y, center.z);
         portal.setDestination(destination);
         
-        portal.setAxisW(Vec3.atLowerCornerOf(axises.getA().getNormal()));
-        portal.setAxisH(Vec3.atLowerCornerOf(axises.getB().getNormal()));
+        portal.setAxisW(Vec3.atLowerCornerOf(axises.getA().getUnitVec3i()));
+        portal.setAxisH(Vec3.atLowerCornerOf(axises.getB().getUnitVec3i()));
         portal.setWidth(Helper.getCoordinate(areaSize, axises.getA().getAxis()));
         portal.setHeight(Helper.getCoordinate(areaSize, axises.getB().getAxis()));
         

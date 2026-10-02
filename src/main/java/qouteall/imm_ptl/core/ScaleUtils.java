@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core;
 
+import net.minecraft.server.level.ServerPlayer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.Minecraft;
@@ -153,9 +154,12 @@ public class ScaleUtils {
         
         if (!entity.level().isClientSide && isScaleIllegal(newScale)) {
             newScale = 1;
-            entity.sendSystemMessage(
-                Component.literal("Scale out of range")
-            );
+            // since 1.21.2 only players can receive system messages
+            if (entity instanceof ServerPlayer serverPlayer) {
+                serverPlayer.sendSystemMessage(
+                    Component.literal("Scale out of range")
+                );
+            }
         }
         
         ScaleUtils.setIPortalScaling(entity, newScale);

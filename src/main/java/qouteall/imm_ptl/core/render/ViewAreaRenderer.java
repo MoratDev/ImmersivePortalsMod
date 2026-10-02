@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.render;
 
+import net.minecraft.client.renderer.CompiledShaderProgram;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -8,7 +9,6 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import qouteall.imm_ptl.core.CHelper;
@@ -81,14 +81,26 @@ public class ViewAreaRenderer {
         
         CHelper.enableDepthClamp();
         
-        ShaderInstance shader = MyRenderHelper.portalAreaShader;
-        RenderSystem.setShader(() -> shader);
-        
-        shader.MODEL_VIEW_MATRIX.set(modelViewMatrix);
-        shader.PROJECTION_MATRIX.set(projectionMatrix);
-        
+        CompiledShaderProgram shader = Objects.requireNonNull(
+            RenderSystem.setShader(MyRenderHelper.PORTAL_AREA),
+            "portal area shader is not loaded"
+        );
+
+        if (shader.MODEL_VIEW_MATRIX != null) {
+            shader.MODEL_VIEW_MATRIX.set(modelViewMatrix);
+        }
+        if (shader.PROJECTION_MATRIX != null) {
+            shader.PROJECTION_MATRIX.set(projectionMatrix);
+        }
+
         FrontClipping.updateClippingEquationUniformForCurrentShader(false);
-        
+
+        // in 1.21.1 this blend mode was specified in the shader json
+        RenderSystem.enableBlend();
+        RenderSystem.blendFunc(
+            GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA
+        );
+
         shader.apply();
         
         ViewAreaRenderer.buildPortalViewAreaTrianglesBuffer(

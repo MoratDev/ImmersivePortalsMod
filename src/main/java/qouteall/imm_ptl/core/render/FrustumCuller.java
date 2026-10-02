@@ -35,6 +35,13 @@ public class FrustumCuller {
         camZ = cameraZ;
     }
     
+    /**
+     * @return whether it culls anything now
+     */
+    public boolean isActive() {
+        return canDetermineInvisibleFunc != null;
+    }
+
     public boolean canDetermineInvisibleWithCameraCoord(
         float minX, float minY, float minZ, float maxX, float maxY, float maxZ
     ) {

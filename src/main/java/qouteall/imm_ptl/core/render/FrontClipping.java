@@ -185,24 +185,18 @@ public class FrontClipping {
             return;
         }
         
-        int uniformLocation = ((IEShader) shader).ip_getClippingEquationUniformLocation();
-        if (uniformLocation != -1) {
+        Uniform clippingEquationUniform = ((IEShader) shader).ip_getClippingEquationUniform();
+        if (clippingEquationUniform != null) {
             if (isClippingEnabled) {
                 double[] equation = activeClipPlaneEquationBeforeModelView;
 //                double[] equation = isRenderingEntities ? activeClipPlaneAfterModelView : activeClipPlaneEquationBeforeModelView;
-//                clippingEquationUniform.set(
-//                    (float) equation[0], (float) equation[1],
-//                    (float) equation[2], (float) equation[3]
-//                );
-                GL20.glUniform4f(
-                    uniformLocation,
+                clippingEquationUniform.set(
                     (float) equation[0], (float) equation[1],
                     (float) equation[2], (float) equation[3]
                 );
             }
             else {
-                GL20.glUniform4f(uniformLocation, 0, 0, 0, 1);
-//                clippingEquationUniform.set(0f, 0f, 0f, 1f);
+                clippingEquationUniform.set(0f, 0f, 0f, 1f);
             }
         }
     }
@@ -218,9 +212,9 @@ public class FrontClipping {
             return;
         }
         
-        int uniformLocation = ((IEShader) shader).ip_getClippingEquationUniformLocation();
-        if (uniformLocation != -1) {
-            GL20.glUniform4f(uniformLocation, 0, 0, 0, 1);
+        Uniform clippingEquationUniform = ((IEShader) shader).ip_getClippingEquationUniform();
+        if (clippingEquationUniform != null) {
+            clippingEquationUniform.set(0f, 0f, 0f, 1f);
         }
     }
 }

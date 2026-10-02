@@ -62,24 +62,36 @@ public class MyRenderHelper {
     
     public static final Minecraft client = Minecraft.getInstance();
     
-    public static final ShaderProgram BLIT_SCREEN_NOBLEND = CoreShadersAccessor.register(
+    public static final ShaderProgram BLIT_SCREEN_NOBLEND = registerShaderProgram(
         "blit_screen_noblend",
-        DefaultVertexFormat.BLIT_SCREEN,
-        ShaderDefines.EMPTY
+        DefaultVertexFormat.BLIT_SCREEN
     );
-    
-    public static final ShaderProgram PORTAL_AREA = CoreShadersAccessor.register(
+
+    public static final ShaderProgram PORTAL_AREA = registerShaderProgram(
         "portal_area",
-        DefaultVertexFormat.POSITION_COLOR,
-        ShaderDefines.EMPTY
+        DefaultVertexFormat.POSITION_COLOR
     );
-    
-    public static final ShaderProgram PORTAL_DRAW_FB_IN_AREA = CoreShadersAccessor.register(
+
+    public static final ShaderProgram PORTAL_DRAW_FB_IN_AREA = registerShaderProgram(
         "portal_draw_fb_in_area",
-        DefaultVertexFormat.POSITION_COLOR,
-        ShaderDefines.EMPTY
+        DefaultVertexFormat.POSITION_COLOR
     );
-    
+
+    /**
+     * Vanilla's CoreShaders#register hardcodes the "minecraft" namespace.
+     * The shader files are in assets/immersive_portals/shaders/core/
+     * Adding into the vanilla list makes it compile during resource reloading
+     * (otherwise it's lazily compiled on first use).
+     */
+    private static ShaderProgram registerShaderProgram(String name, VertexFormat vertexFormat) {
+        ShaderProgram shaderProgram = new ShaderProgram(
+            McHelper.newResourceLocation("immersive_portals", "core/" + name),
+            vertexFormat, ShaderDefines.EMPTY
+        );
+        CoreShadersAccessor.ip_getPrograms().add(shaderProgram);
+        return shaderProgram;
+    }
+
 //    public static final SignalBiArged<ResourceProvider, Consumer<ShaderInstance>> loadShaderSignal =
 //        new SignalBiArged<>();
     
@@ -186,10 +198,11 @@ public class MyRenderHelper {
         
         Objects.requireNonNull(shader, "shader is null")
             .bindSampler("DiffuseSampler", textureProvider.getColorTextureId());
+        // the uniforms are float. Uniform#set(int) is for int uniforms
         Objects.requireNonNull(shader.getUniform("w"), "no w")
-            .set(textureProvider.width);
+            .set((float) textureProvider.width);
         Objects.requireNonNull(shader.getUniform("h"), "no h")
-            .set(textureProvider.height);
+            .set((float) textureProvider.height);
 
         if (shader.MODEL_VIEW_MATRIX != null) {
             shader.MODEL_VIEW_MATRIX.set(modelViewMatrix);
@@ -198,6 +211,12 @@ public class MyRenderHelper {
         if (shader.PROJECTION_MATRIX != null) {
             shader.PROJECTION_MATRIX.set(projectionMatrix);
         }
+
+        // in 1.21.1 this blend mode was specified in the shader json
+        RenderSystem.enableBlend();
+        RenderSystem.blendFunc(
+            GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA
+        );
 
         shader.apply();
 
@@ -269,18 +288,29 @@ public class MyRenderHelper {
      */
     @IPVanillaCopy
     public static void renderScreenTriangle(int r, int g, int b, int a) {
-        ShaderProgram shader = CoreShaders.POSITION_COLOR;
-        Validate.notNull(shader, "Position color shader is null");
-        
+        // the same as in 1.21.1: it draws with identity matrices,
+        // without touching the model view matrix and projection matrix in RenderSystem
+        CompiledShaderProgram shader = Objects.requireNonNull(
+            RenderSystem.setShader(CoreShaders.POSITION_COLOR),
+            "Position color shader is not loaded"
+        );
+
         Matrix4f identityMatrix = new Matrix4f();
         identityMatrix.identity();
-        
-        RenderSystem.getModelViewStack().pushMatrix();
-        RenderSystem.getModelViewStack().set(identityMatrix);
-        
-        RenderSystem.setProjectionMatrix(identityMatrix, ProjectionType.ORTHOGRAPHIC);
-        
-        Tesselator tessellator = RenderSystem.renderThreadTesselator();
+
+        if (shader.MODEL_VIEW_MATRIX != null) {
+            shader.MODEL_VIEW_MATRIX.set(identityMatrix);
+        }
+        if (shader.PROJECTION_MATRIX != null) {
+            shader.PROJECTION_MATRIX.set(identityMatrix);
+        }
+        if (shader.COLOR_MODULATOR != null) {
+            shader.COLOR_MODULATOR.set(1.0f, 1.0f, 1.0f, 1.0f);
+        }
+
+        shader.apply();
+
+        Tesselator tessellator= RenderSystem.renderThreadTesselator();
         BufferBuilder bufferBuilder = tessellator.
             begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
         
@@ -292,11 +322,9 @@ public class MyRenderHelper {
         bufferBuilder.addVertex(-1, -1, 0).setColor(r, g, b, a);
         bufferBuilder.addVertex(1, -1, 0).setColor(r, g, b, a);
         
-        BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
-        
-        RenderSystem.getModelViewStack().popMatrix();
-        
-        Objects.requireNonNull(RenderSystem.getShader()).clear();
+        BufferUploader.draw(bufferBuilder.buildOrThrow());
+
+        shader.clear();
         RenderSystem.clearShader();
     }
     
@@ -412,9 +440,13 @@ public class MyRenderHelper {
         CompiledShaderProgram compiledShaderProgram = RenderSystem.getShader();
         Validate.notNull(compiledShaderProgram, "compiledShaderProgram is null");
         
-        compiledShaderProgram.bindSampler("DiffuseSampler", textureProvider.getColorTextureId());
-        
-        BufferBuilder bufferBuilder = RenderSystem.renderThreadTesselator().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLIT_SCREEN);
+        // the sampler of vanilla blit_screen shader is named InSampler since 1.21.2
+        compiledShaderProgram.bindSampler(
+            doUseAlphaBlend ? "InSampler" : "DiffuseSampler",
+            textureProvider.getColorTextureId()
+        );
+
+        BufferBuilder bufferBuilder= RenderSystem.renderThreadTesselator().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLIT_SCREEN);
         bufferBuilder.addVertex(0.0f, 0.0f, 0.0f);
         bufferBuilder.addVertex(1.0f, 0.0f, 0.0f);
         bufferBuilder.addVertex(1.0f, 1.0f, 0.0f);

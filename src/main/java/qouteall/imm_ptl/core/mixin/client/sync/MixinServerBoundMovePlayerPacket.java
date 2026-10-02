@@ -18,6 +18,7 @@ public class MixinServerBoundMovePlayerPacket {
     )
     private void onConstruct(
         double x, double y, double z, float yaw, float pitch, boolean onGround,
+        boolean horizontalCollision,
         boolean changePosition, boolean changeLook, CallbackInfo ci
     ) {
         ResourceKey<Level> dimension = Minecraft.getInstance().player.level().dimension();

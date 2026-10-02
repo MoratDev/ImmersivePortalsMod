@@ -1,0 +1,11 @@
+// The unit tests are not run by the normal build (see the comment at the end of build.gradle).
+// Run them with: gradlew test -I gradle/unit-tests.init.gradle
+allprojects {
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+        testLogging {
+            events "passed", "skipped", "failed"
+            exceptionFormat "full"
+        }
+    }
+}

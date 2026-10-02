@@ -1,5 +1,7 @@
 package qouteall.imm_ptl.core.mixin.common.collision;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.network.chat.Component;
@@ -151,31 +153,43 @@ public abstract class MixinEntity implements IEEntity, ImmPtlEntityExtension {
         }
     }
     
-    @Redirect(
-        method = "Lnet/minecraft/world/entity/Entity;checkInsideBlocks()V",
-        at = @At(
-            value = "INVOKE",
-            target = "Lnet/minecraft/world/entity/Entity;getBoundingBox()Lnet/minecraft/world/phys/AABB;"
-        )
-    )
-    private AABB redirectBoundingBoxInCheckingBlockCollision(Entity entity) {
-        return ip_getActiveCollisionBox(entity.getBoundingBox());
-    }
-    
+    // The blocks behind the portal that the entity is colliding with
+    // should not affect the entity (for example lava and cactus).
+    // In 1.21.1 checkInsideBlocks() used getBoundingBox(). It was redirected to the active collision box
+    // and the method was cancelled when the active collision box is null.
+    // Since 1.21.2 checkInsideBlocks(List, Set) traverses the blocks along each movement in the tick,
+    // using the bounding box in the end position of each movement.
     @Inject(
         method = "checkInsideBlocks",
-        at = @At(
-            value = "INVOKE_ASSIGN",
-            target = "Lnet/minecraft/world/entity/Entity;getBoundingBox()Lnet/minecraft/world/phys/AABB;",
-            shift = At.Shift.AFTER
-        ),
-        locals = LocalCapture.CAPTURE_FAILHARD,
+        at = @At("HEAD"),
         cancellable = true
     )
-    private void onCheckInsideBlocks(CallbackInfo ci, AABB box) {
-        if (box == null) {
+    private void onCheckInsideBlocks(CallbackInfo ci) {
+        Entity this_ = (Entity) (Object) this;
+        if (ip_getActiveCollisionBox(this_.getBoundingBox()) == null) {
             ci.cancel();
         }
+    }
+
+    @WrapOperation(
+        method = "checkInsideBlocks",
+        at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/world/entity/Entity;makeBoundingBox(Lnet/minecraft/world/phys/Vec3;)Lnet/minecraft/world/phys/AABB;"
+        )
+    )
+    private AABB wrapBoundingBoxInCheckingBlockCollision(
+        Entity entity, Vec3 position, Operation<AABB> original
+    ) {
+        AABB box = original.call(entity, position);
+        AABB activeBox = ip_getActiveCollisionBox(box);
+        if (activeBox == null) {
+            // the box in that position is fully behind the portal,
+            // but the current bounding box is not (checked at method head).
+            // vanilla cannot handle a null box here. just use the original box.
+            return box;
+        }
+        return activeBox;
     }
     
     // avoid suffocation when colliding with a portal on wall
