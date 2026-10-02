@@ -3,7 +3,7 @@ package qouteall.imm_ptl.core.render;
 import net.minecraft.world.entity.Entity;
 import java.util.ArrayList;
 import java.util.List;
-import net.minecraft.client.renderer.FogParameters;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.ProjectionType;
 import net.minecraft.util.profiling.Profiler;
 import com.mojang.blaze3d.platform.Lighting;
@@ -14,7 +14,6 @@ import net.fabricmc.api.Environment;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.FogRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.PostChain;
@@ -37,6 +36,7 @@ import qouteall.imm_ptl.core.IPGlobal;
 import qouteall.imm_ptl.core.block_manipulation.BlockManipulationClient;
 import qouteall.imm_ptl.core.compat.iris_compatibility.IrisInterface;
 import qouteall.imm_ptl.core.compat.sodium_compatibility.SodiumInterface;
+import qouteall.imm_ptl.core.ducks.IEFogRenderer;
 import qouteall.imm_ptl.core.ducks.IEGameRenderer;
 import qouteall.imm_ptl.core.ducks.IEMinecraftClient;
 import qouteall.imm_ptl.core.ducks.IEParticleManager;
@@ -163,8 +163,18 @@ public class MyGameRenderer {
         
         // the projection matrix contains view bobbing.
         // the view bobbing is related with scale
-        Matrix4f oldProjectionMatrix = RenderSystem.getProjectionMatrix();
+        // Since 1.21.6 the projection matrix is in a uniform buffer.
+        // Rendering the portal content overwrites the buffer of level projection matrix.
+        Matrix4f oldProjectionMatrix = new Matrix4f(MyRenderHelper.getLevelProjectionMatrix());
+        GpuBufferSlice oldProjectionMatrixBuffer = RenderSystem.getProjectionMatrixBuffer();
         ProjectionType oldProjectionType = RenderSystem.getProjectionType();
+
+        // Since 1.21.6 the fog is in uniform buffer.
+        // Every world rendering has its own fog buffer slice (see MixinFogRenderer).
+        IEFogRenderer ieFogRenderer = (IEFogRenderer) ieGameRenderer.ip_getFogRenderer();
+        GpuBufferSlice oldFog = ieFogRenderer.ip_getCurrentFog();
+        GpuBufferSlice oldShaderFog = RenderSystem.getShaderFog();
+        GpuBufferSlice oldShaderLights = RenderSystem.getShaderLights();
         Matrix4fStack oldModelViewStack = IERenderSystem.ip_getModelViewStack();
 
         // In 1.21.2+ the visible entity list is a field of LevelRenderer.
@@ -185,7 +195,7 @@ public class MyGameRenderer {
         
         client.getBlockEntityRenderDispatcher().level = newWorld;
         client.player.noPhysics = true;
-        client.gameRenderer.setRenderHand(doRenderHand);
+        ieGameRenderer.ip_setDoRenderHand(doRenderHand);
         
         FogRendererContext.swappingManager.pushSwapping(newDimension);
         ((IEParticleManager) client.particleEngine).ip_setWorld(newWorld);
@@ -236,6 +246,10 @@ public class MyGameRenderer {
         if (!RenderStates.isDimensionRendered(newDimension)) {
             helper.lightmapTexture.updateLightTexture(0);
         }
+
+        // Since 1.21.6 the diffuse light directions of level are in a uniform buffer
+        // that vanilla updates when the client world changes.
+        resetDiffuseLighting();
         
         //invoke rendering
         invokeWrapper.accept(() -> {
@@ -255,7 +269,7 @@ public class MyGameRenderer {
         ieGameRenderer.ip_setLightmapTextureManager(oldLightmap);
         client.getBlockEntityRenderDispatcher().level = oldWorld;
         client.player.noPhysics = oldNoClip;
-        client.gameRenderer.setRenderHand(oldDoRenderHand);
+        ieGameRenderer.ip_setDoRenderHand(oldDoRenderHand);
         
         ((IEParticleManager) client.particleEngine).ip_setWorld(oldWorld);
         client.hitResult = oldCrosshairTarget;
@@ -278,8 +292,22 @@ public class MyGameRenderer {
         
         ((IEWorldRenderer) worldRenderer).portal_setFrustum(oldFrustum);
         
-        RenderSystem.setProjectionMatrix(oldProjectionMatrix, oldProjectionType);
+        ieGameRenderer.ip_getLevelProjectionMatrixBuffer().getBuffer(oldProjectionMatrix);
+        MyRenderHelper.setLevelProjectionMatrix(oldProjectionMatrix);
+        if (oldProjectionMatrixBuffer != null) {
+            RenderSystem.setProjectionMatrix(oldProjectionMatrixBuffer, oldProjectionType);
+        }
         IERenderSystem.ip_setModelViewStack(oldModelViewStack);
+
+        ieFogRenderer.ip_setCurrentFog(oldFog);
+        if (oldShaderFog != null) {
+            RenderSystem.setShaderFog(oldShaderFog);
+        }
+
+        resetDiffuseLighting();
+        if (oldShaderLights != null) {
+            RenderSystem.setShaderLights(oldShaderLights);
+        }
 
         IrisInterface.invoker.setPipeline(worldRenderer, irisPipeline);
         
@@ -297,14 +325,13 @@ public class MyGameRenderer {
     
     /**
      * In 1.21.1 it recomputed the fog by FogRenderer.setupFog() and FogRenderer.levelFogColor().
-     * Since 1.21.2 the fog parameters are computed once in {@link LevelRenderer#renderLevel}
-     * and passed to the render passes.
+     * Since 1.21.2 the fog is computed once per world rendering and passed to the render passes.
      * After rendering portal content, the shader fog becomes the fog of portal content.
      * It needs to be reset to the fog of the outer world.
      *
-     * @param outerFog the fog parameters that vanilla computed for the world rendering that's going on
+     * @param outerFog the fog uniform buffer that vanilla computed for the world rendering that's going on
      */
-    public static void resetFogState(FogParameters outerFog) {
+    public static void resetFogState(GpuBufferSlice outerFog) {
         RenderSystem.setShaderFog(outerFog);
     }
 
@@ -313,29 +340,24 @@ public class MyGameRenderer {
      * This refreshes the fog color tracked by {@link FogRendererContext}.
      */
     public static void updateFogColor() {
-        FogRenderer.computeFogColor(
-            client.gameRenderer.getMainCamera(),
-            RenderStates.getPartialTick(),
-            client.level,
-            client.options.getEffectiveRenderDistance(),
-            client.gameRenderer.getDarkenWorldAmount(RenderStates.getPartialTick())
+        FogRendererContext.computeFogColor(
+            client.gameRenderer.getMainCamera(), client.level
         );
     }
-    
+
     /**
-     * {@link LevelRenderer#renderLevel}
+     * {@link net.minecraft.client.renderer.GameRenderer#setLevel}
+     * Since 1.21.6 vanilla only updates the light directions of level when the client world changes.
+     * When rendering portals the dimension that's being rendered changes.
      */
     @IPVanillaCopy
     public static void resetDiffuseLighting() {
         ClientLevel world = client.level;
         assert world != null;
-        if (world.effects().constantAmbientLight()) {
-            Lighting.setupNetherLevel();
-        }
-        else {
-            Lighting.setupLevel();
-        }
+        Lighting lighting = client.gameRenderer.getLighting();
+        lighting.updateLevel(world.effects().constantAmbientLight());
+        lighting.setupFor(Lighting.Entry.LEVEL);
     }
-    
-    
+
+
 }

@@ -2,7 +2,10 @@ package qouteall.imm_ptl.core.mixin.client.render;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
+import com.mojang.blaze3d.systems.CommandEncoder;
+import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
@@ -10,15 +13,21 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.PerspectiveProjectionMatrixBuffer;
+import net.minecraft.client.renderer.ScreenEffectRenderer;
+import net.minecraft.client.renderer.fog.FogRenderer;
+import net.minecraft.client.gui.Gui;
 import net.minecraft.util.profiling.Profiler;
 import net.minecraft.util.profiling.ProfilerFiller;
 import org.joml.Matrix4f;
 import org.joml.Quaternionfc;
+import org.joml.Vector4f;
 import org.slf4j.Logger;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
@@ -48,8 +57,17 @@ public abstract class MixinGameRenderer implements IEGameRenderer {
     @Mutable
     private LightTexture lightTexture;
     
+    // Before 1.21.6 this was a vanilla field.
+    @Unique
+    private boolean ip_renderHand = true;
+
     @Shadow
-    private boolean renderHand;
+    @Final
+    private FogRenderer fogRenderer;
+
+    @Shadow
+    @Final
+    private PerspectiveProjectionMatrixBuffer levelProjectionMatrixBuffer;
     @Shadow
     @Final
     @Mutable
@@ -170,17 +188,97 @@ public abstract class MixinGameRenderer implements IEGameRenderer {
         method = "renderLevel",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/client/renderer/LevelRenderer;renderLevel(Lcom/mojang/blaze3d/resource/GraphicsResourceAllocator;Lnet/minecraft/client/DeltaTracker;ZLnet/minecraft/client/Camera;Lnet/minecraft/client/renderer/GameRenderer;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;)V"
+            target = "Lnet/minecraft/client/renderer/LevelRenderer;renderLevel(Lcom/mojang/blaze3d/resource/GraphicsResourceAllocator;Lnet/minecraft/client/DeltaTracker;ZLnet/minecraft/client/Camera;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lorg/joml/Vector4f;Z)V"
         )
     )
     private void wrapRenderLevel(
-        LevelRenderer instance, GraphicsResourceAllocator graphicsResourceAllocator, DeltaTracker deltaTracker, boolean bl, Camera camera, GameRenderer gameRenderer, Matrix4f modelView, Matrix4f projection, Operation<Void> original
+        LevelRenderer instance, GraphicsResourceAllocator graphicsResourceAllocator, DeltaTracker deltaTracker, boolean bl, Camera camera, Matrix4f modelView, Matrix4f projection, GpuBufferSlice fog, Vector4f fogColor, boolean renderSky, Operation<Void> original
     ) {
         original.call(
-            instance, graphicsResourceAllocator, deltaTracker, bl, camera, gameRenderer, modelView, projection
+            instance, graphicsResourceAllocator, deltaTracker, bl, camera, modelView, projection, fog, fogColor, renderSky
         );
-        
+
         IPCGlobal.renderer.onBeforeHandRendering(modelView);
+    }
+
+    // Since 1.21.6 the projection matrix is uploaded into a uniform buffer
+    // and cannot be read back from RenderSystem. Track it.
+    @WrapOperation(
+        method = "renderLevel",
+        at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/client/renderer/PerspectiveProjectionMatrixBuffer;getBuffer(Lorg/joml/Matrix4f;)Lcom/mojang/blaze3d/buffers/GpuBufferSlice;"
+        )
+    )
+    private GpuBufferSlice wrapUploadLevelProjectionMatrix(
+        PerspectiveProjectionMatrixBuffer instance, Matrix4f projection,
+        Operation<GpuBufferSlice> original
+    ) {
+        MyRenderHelper.setLevelProjectionMatrix(projection);
+        return original.call(instance, projection);
+    }
+
+    // Before 1.21.6 vanilla had GameRenderer#renderHand that controls whether to
+    // clear the depth and render the hand after rendering the world.
+    // Now vanilla always does that. The followings skip them when rendering portal content.
+    @WrapOperation(
+        method = "renderLevel",
+        at = @At(
+            value = "INVOKE",
+            target = "Lcom/mojang/blaze3d/systems/CommandEncoder;clearDepthTexture(Lcom/mojang/blaze3d/textures/GpuTexture;D)V",
+            remap = false
+        )
+    )
+    private void wrapClearDepthBeforeHand(
+        CommandEncoder instance, GpuTexture depthTexture, double clearDepth,
+        Operation<Void> original
+    ) {
+        if (ip_renderHand) {
+            original.call(instance, depthTexture, clearDepth);
+        }
+    }
+
+    @WrapOperation(
+        method = "renderLevel",
+        at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/client/renderer/GameRenderer;renderItemInHand(FZLorg/joml/Matrix4f;)V"
+        )
+    )
+    private void wrapRenderItemInHand(
+        GameRenderer instance, float partialTick, boolean sleeping, Matrix4f projectionMatrix,
+        Operation<Void> original
+    ) {
+        if (ip_renderHand) {
+            original.call(instance, partialTick, sleeping, projectionMatrix);
+        }
+    }
+
+    @WrapOperation(
+        method = "renderLevel",
+        at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/client/renderer/ScreenEffectRenderer;renderScreenEffect(ZF)V"
+        )
+    )
+    private void wrapRenderScreenEffect(
+        ScreenEffectRenderer instance, boolean sleeping, float partialTick,
+        Operation<Void> original
+    ) {
+        if (ip_renderHand) {
+            original.call(instance, sleeping, partialTick);
+        }
+    }
+
+    @WrapOperation(
+        method = "renderLevel",
+        at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/client/gui/Gui;shouldRenderDebugCrosshair()Z"
+        )
+    )
+    private boolean wrapShouldRenderDebugCrosshair(Gui instance, Operation<Boolean> original) {
+        return ip_renderHand && original.call(instance);
     }
     
     //resize all world renderers when resizing window
@@ -200,12 +298,12 @@ public abstract class MixinGameRenderer implements IEGameRenderer {
     private static boolean portal_isRenderingHand = false;
     
     @Inject(method = "renderItemInHand", at = @At("HEAD"))
-    private void onRenderHandBegins(Camera camera, float f, Matrix4f matrix4f, CallbackInfo ci) {
+    private void onRenderHandBegins(float f, boolean sleeping, Matrix4f matrix4f, CallbackInfo ci) {
         portal_isRenderingHand = true;
     }
     
     @Inject(method = "renderItemInHand", at = @At("RETURN"))
-    private void onRenderHandEnds(Camera camera, float f, Matrix4f matrix4f, CallbackInfo ci) {
+    private void onRenderHandEnds(float f, boolean sleeping, Matrix4f matrix4f, CallbackInfo ci) {
         portal_isRenderingHand = false;
     }
     
@@ -323,7 +421,22 @@ public abstract class MixinGameRenderer implements IEGameRenderer {
     
     @Override
     public boolean ip_getDoRenderHand() {
-        return renderHand;
+        return ip_renderHand;
+    }
+
+    @Override
+    public void ip_setDoRenderHand(boolean cond) {
+        ip_renderHand = cond;
+    }
+
+    @Override
+    public FogRenderer ip_getFogRenderer() {
+        return fogRenderer;
+    }
+
+    @Override
+    public PerspectiveProjectionMatrixBuffer ip_getLevelProjectionMatrixBuffer() {
+        return levelProjectionMatrixBuffer;
     }
     
     @Override

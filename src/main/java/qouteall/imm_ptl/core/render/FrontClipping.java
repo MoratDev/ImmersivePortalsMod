@@ -1,7 +1,6 @@
 package qouteall.imm_ptl.core.render;
 
 import qouteall.imm_ptl.core.compat.iris_compatibility.IrisInterface;
-import com.mojang.blaze3d.opengl.Uniform;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
@@ -176,7 +175,8 @@ public class FrontClipping {
     public static boolean isDrawingPortalArea = false;
 
     /**
-     * Called before every draw of a shader program that has the clipping equation uniform.
+     * Called before every draw of a shader program that has the clipping equation uniform,
+     * after the shader program is bound.
      * (The transformed shaders: terrain, entity, particle and portal area.)
      * <p>
      * Before 1.21.5 the uniform was updated when setting the shader in RenderSystem,
@@ -185,7 +185,7 @@ public class FrontClipping {
      * The clipping is only enabled during these renderings, so it's the same to follow
      * {@link #isClippingEnabled}.
      */
-    public static void loadClippingEquation(Uniform clippingEquationUniform) {
+    public static void loadClippingEquation(int clippingEquationLocation) {
         if (!IPGlobal.enableClippingMechanism) {
             return;
         }
@@ -198,13 +198,14 @@ public class FrontClipping {
 
         if (shouldClip) {
             double[] equation = activeClipPlaneEquationBeforeModelView;
-            clippingEquationUniform.set(
+            GL20.glUniform4f(
+                clippingEquationLocation,
                 (float) equation[0], (float) equation[1],
                 (float) equation[2], (float) equation[3]
             );
         }
         else {
-            clippingEquationUniform.set(0f, 0f, 0f, 1f);
+            GL20.glUniform4f(clippingEquationLocation, 0f, 0f, 0f, 1f);
         }
     }
 }

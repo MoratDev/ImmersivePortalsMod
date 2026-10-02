@@ -13,6 +13,8 @@ import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.network.protocol.Packet;
@@ -239,7 +241,19 @@ public class Portal extends Entity implements
         // nothing
     }
     
+    // Since 1.21.6 vanilla passes ValueInput/ValueOutput. The portal data is still handled as tag.
     @Override
+    protected final void readAdditionalSaveData(ValueInput input) {
+        readAdditionalSaveData(McHelper.readWholeTag(input));
+    }
+    
+    @Override
+    protected final void addAdditionalSaveData(ValueOutput output) {
+        CompoundTag compoundTag = new CompoundTag();
+        addAdditionalSaveData(compoundTag);
+        McHelper.writeWholeTag(output, compoundTag);
+    }
+    
     protected void readAdditionalSaveData(CompoundTag compoundTag) {
         width = compoundTag.getDoubleOr("width", 0.0);
         height = compoundTag.getDoubleOr("height", 0.0);
@@ -372,7 +386,6 @@ public class Portal extends Entity implements
         updateCache();
     }
     
-    @Override
     protected void addAdditionalSaveData(CompoundTag compoundTag) {
         compoundTag.putDouble("width", width);
         compoundTag.putDouble("height", height);

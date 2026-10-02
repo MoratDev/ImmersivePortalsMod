@@ -1,13 +1,13 @@
 package qouteall.imm_ptl.core.render;
 
 import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.platform.DestFactor;
 import com.mojang.blaze3d.platform.SourceFactor;
-import com.mojang.blaze3d.shaders.UniformType;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -16,6 +16,9 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
+import org.joml.Vector4f;
 import qouteall.imm_ptl.core.McHelper;
 
 import java.util.Collections;
@@ -108,7 +111,7 @@ public class IPRenderPipelines {
     ) {
         StateKey key = new StateKey(cull, writeColor, writeDepth, depthMode);
         return PORTAL_AREA_PIPELINES.computeIfAbsent(key, k -> k.register(k.apply(
-            RenderPipeline.builder(RenderPipelines.MATRICES_SNIPPET)
+            RenderPipeline.builder(RenderPipelines.MATRICES_PROJECTION_SNIPPET)
                 .withLocation(id("pipeline/portal_area_" + k.describe()))
                 .withVertexShader(id("core/portal_area"))
                 .withFragmentShader(id("core/portal_area"))
@@ -121,13 +124,11 @@ public class IPRenderPipelines {
      * Draws the color of another framebuffer in the portal view area.
      */
     public static final RenderPipeline PORTAL_DRAW_FB_IN_AREA =
-        RenderPipeline.builder(RenderPipelines.MATRICES_SNIPPET)
+        RenderPipeline.builder(RenderPipelines.MATRICES_PROJECTION_SNIPPET)
             .withLocation(id("pipeline/portal_draw_fb_in_area"))
             .withVertexShader(id("core/portal_draw_fb_in_area"))
             .withFragmentShader(id("core/portal_draw_fb_in_area"))
             .withSampler("DiffuseSampler")
-            .withUniform("w", UniformType.FLOAT)
-            .withUniform("h", UniformType.FLOAT)
             .withBlend(new BlendFunction(SourceFactor.SRC_ALPHA, DestFactor.ONE_MINUS_SRC_ALPHA))
             .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
             .withDepthWrite(true)
@@ -144,7 +145,7 @@ public class IPRenderPipelines {
     ) {
         StateKey key = new StateKey(false, writeColor, writeDepth, depthMode);
         return SCREEN_TRIANGLE_PIPELINES.computeIfAbsent(key, k -> k.register(k.apply(
-            RenderPipeline.builder(RenderPipelines.MATRICES_COLOR_SNIPPET)
+            RenderPipeline.builder(RenderPipelines.MATRICES_PROJECTION_SNIPPET)
                 .withLocation(id("pipeline/screen_triangle_" + k.describe()))
                 .withVertexShader("core/position_color")
                 .withFragmentShader("core/position_color")
@@ -205,7 +206,8 @@ public class IPRenderPipelines {
 
     /**
      * Draw the mesh to a render target, similar to RenderType#draw.
-     * It uses the model view matrix, projection matrix and shader color in {@link RenderSystem}.
+     * It uses the model view matrix and projection matrix in {@link RenderSystem}.
+     * (Since 1.21.6 there is no shader color in RenderSystem. It draws without color modulation.)
      * The mesh will be closed.
      */
     public static void draw(
@@ -213,6 +215,15 @@ public class IPRenderPipelines {
         @Nullable Consumer<RenderPass> passSetup
     ) {
         try (mesh) {
+            // the same as RenderType.CompositeRenderType#draw
+            GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms().writeTransform(
+                RenderSystem.getModelViewMatrix(),
+                new Vector4f(1.0F, 1.0F, 1.0F, 1.0F),
+                new Vector3f(),
+                new Matrix4f(),
+                0.0F
+            );
+
             GpuBuffer vertexBuffer =
                 pipeline.getVertexFormat().uploadImmediateVertexBuffer(mesh.vertexBuffer());
 
@@ -231,12 +242,14 @@ public class IPRenderPipelines {
 
             try (RenderPass renderPass = createRenderPass(target)) {
                 renderPass.setPipeline(pipeline);
+                RenderSystem.bindDefaultUniforms(renderPass);
+                renderPass.setUniform("DynamicTransforms", dynamicTransforms);
                 renderPass.setVertexBuffer(0, vertexBuffer);
                 renderPass.setIndexBuffer(indexBuffer, indexType);
                 if (passSetup != null) {
                     passSetup.accept(renderPass);
                 }
-                renderPass.drawIndexed(0, mesh.drawState().indexCount());
+                renderPass.drawIndexed(0, 0, mesh.drawState().indexCount(), 1);
             }
         }
     }
@@ -247,8 +260,9 @@ public class IPRenderPipelines {
      */
     public static RenderPass createRenderPass(RenderTarget target) {
         return RenderSystem.getDevice().createCommandEncoder().createRenderPass(
-            target.getColorTexture(), OptionalInt.empty(),
-            target.useDepth ? target.getDepthTexture() : null, OptionalDouble.empty()
+            () -> "Immersive Portals draw",
+            target.getColorTextureView(), OptionalInt.empty(),
+            target.useDepth ? target.getDepthTextureView() : null, OptionalDouble.empty()
         );
     }
 }

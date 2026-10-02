@@ -103,7 +103,7 @@ public class IrisCompatibilityPortalRenderer extends PortalRenderer {
                 portal,
                 client.getMainRenderTarget(),
                 modelView,
-                RenderSystem.getProjectionMatrix()
+                MyRenderHelper.getLevelProjectionMatrix()
             );
         }
         else {
@@ -146,7 +146,7 @@ public class IrisCompatibilityPortalRenderer extends PortalRenderer {
             ViewAreaRenderer.renderPortalArea(
                 portal, Vec3.ZERO,
                 modelView,
-                RenderSystem.getProjectionMatrix(),
+                MyRenderHelper.getLevelProjectionMatrix(),
                 true, false, false, true
             );
         });

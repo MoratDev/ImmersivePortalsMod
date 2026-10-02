@@ -2,6 +2,7 @@ package qouteall.imm_ptl.core.render;
 
 import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.opengl.GlDevice;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.opengl.GlTexture;
@@ -15,6 +16,7 @@ import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.PerspectiveProjectionMatrixBuffer;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.util.ARGB;
 import net.minecraft.util.Mth;
@@ -169,27 +171,61 @@ public class MyRenderHelper {
     }
 
     /**
+     * Since 1.21.6 the projection matrix in {@link RenderSystem} is a uniform buffer
+     * and the matrix cannot be read back.
+     * This is the projection matrix that vanilla uses for the world rendering that's going on.
+     * It's tracked in MixinGameRenderer.
+     */
+    private static Matrix4f levelProjectionMatrix = new Matrix4f();
+
+    public static Matrix4f getLevelProjectionMatrix() {
+        return levelProjectionMatrix;
+    }
+
+    public static void setLevelProjectionMatrix(Matrix4f matrix) {
+        levelProjectionMatrix = new Matrix4f(matrix);
+    }
+
+    /**
+     * The uniform buffer for the projection matrix of this mod's own drawing.
+     * (Any matrix can be put into it. It's not limited to perspective projection.)
+     */
+    @Nullable
+    private static PerspectiveProjectionMatrixBuffer ownProjectionMatrixBuffer;
+
+    private static GpuBufferSlice uploadOwnProjectionMatrix(Matrix4f projectionMatrix) {
+        if (ownProjectionMatrixBuffer == null) {
+            ownProjectionMatrixBuffer = new PerspectiveProjectionMatrixBuffer("immersive portals");
+        }
+        return ownProjectionMatrixBuffer.getBuffer(projectionMatrix);
+    }
+
+    /**
      * The vanilla shader programs always use the model view matrix and projection matrix
      * in {@link RenderSystem}. Temporarily change them.
      */
     public static void withMatrices(
         Matrix4f modelViewMatrix, Matrix4f projectionMatrix, Runnable func
     ) {
-        Matrix4f oldProjectionMatrix = RenderSystem.getProjectionMatrix();
+        GpuBufferSlice oldProjectionMatrix = RenderSystem.getProjectionMatrixBuffer();
         ProjectionType oldProjectionType = RenderSystem.getProjectionType();
 
         Matrix4f newModelView = new Matrix4f(modelViewMatrix);
         Matrix4fStack modelViewStack = RenderSystem.getModelViewStack();
         modelViewStack.pushMatrix();
         modelViewStack.set(newModelView);
-        RenderSystem.setProjectionMatrix(projectionMatrix, oldProjectionType);
+        RenderSystem.setProjectionMatrix(
+            uploadOwnProjectionMatrix(projectionMatrix), oldProjectionType
+        );
 
         try {
             func.run();
         }
         finally {
             modelViewStack.popMatrix();
-            RenderSystem.setProjectionMatrix(oldProjectionMatrix, oldProjectionType);
+            if (oldProjectionMatrix != null) {
+                RenderSystem.setProjectionMatrix(oldProjectionMatrix, oldProjectionType);
+            }
         }
     }
 
@@ -221,9 +257,8 @@ public class MyRenderHelper {
             IPRenderPipelines.draw(
                 IPRenderPipelines.PORTAL_DRAW_FB_IN_AREA, target, mesh,
                 renderPass -> {
-                    renderPass.bindSampler("DiffuseSampler", textureProvider.getColorTexture());
-                    renderPass.setUniform("w", (float) textureProvider.width);
-                    renderPass.setUniform("h", (float) textureProvider.height);
+                    // the shader gets the size from the texture
+                    renderPass.bindSampler("DiffuseSampler", textureProvider.getColorTextureView());
                 }
             );
         });
@@ -285,21 +320,9 @@ public class MyRenderHelper {
         // it draws with identity matrices and without color modulation
         Matrix4f identityMatrix = new Matrix4f();
 
-        float[] shaderColor = RenderSystem.getShaderColor();
-        float oldR = shaderColor[0];
-        float oldG = shaderColor[1];
-        float oldB = shaderColor[2];
-        float oldA = shaderColor[3];
-        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
-
-        try {
-            withMatrices(identityMatrix, identityMatrix, () -> {
-                IPRenderPipelines.draw(pipeline, getBoundTarget(), mesh, null);
-            });
-        }
-        finally {
-            RenderSystem.setShaderColor(oldR, oldG, oldB, oldA);
-        }
+        withMatrices(identityMatrix, identityMatrix, () -> {
+            IPRenderPipelines.draw(pipeline, getBoundTarget(), mesh, null);
+        });
     }
 
     /**
@@ -399,9 +422,9 @@ public class MyRenderHelper {
             // the sampler of vanilla blit_screen shader is named InSampler since 1.21.2
             renderPass.bindSampler(
                 doUseAlphaBlend ? "InSampler" : "DiffuseSampler",
-                textureProvider.getColorTexture()
+                textureProvider.getColorTextureView()
             );
-            renderPass.drawIndexed(0, 6);
+            renderPass.drawIndexed(0, 0, 6, 1);
         }
 
         CHelper.checkGlError();

@@ -146,7 +146,7 @@ public class BlockManipulationServer {
             FriendlyByteBuf buf = IPMcHelper.bytesToBuf(packetBytes);
             ServerboundPlayerActionPacket packet = ServerboundPlayerActionPacket.STREAM_CODEC.decode(buf);
             
-            ServerLevel world = player.server.getLevel(dimension);
+            ServerLevel world = player.getServer().getLevel(dimension);
             Validate.notNull(world, "missing %s", dimension.location());
             
             withRedirect(
@@ -169,7 +169,7 @@ public class BlockManipulationServer {
             FriendlyByteBuf buf = IPMcHelper.bytesToBuf(packetBytes);
             ServerboundUseItemOnPacket packet = ServerboundUseItemOnPacket.STREAM_CODEC.decode(buf);
             
-            ServerLevel world = player.server.getLevel(dimension);
+            ServerLevel world = player.getServer().getLevel(dimension);
             Validate.notNull(world, "missing %s", dimension.location());
             
             withRedirect(

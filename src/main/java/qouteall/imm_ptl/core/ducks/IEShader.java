@@ -1,9 +1,8 @@
 package qouteall.imm_ptl.core.ducks;
 
-import com.mojang.blaze3d.opengl.Uniform;
-import org.jetbrains.annotations.Nullable;
-
 public interface IEShader {
-    @Nullable
-    Uniform ip_getClippingEquationUniform();
+    /**
+     * @return the location of the clipping equation uniform, -1 if the shader program doesn't have it.
+     */
+    int ip_getClippingEquationLocation();
 }

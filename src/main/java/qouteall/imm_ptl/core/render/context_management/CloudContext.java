@@ -1,7 +1,7 @@
 package qouteall.imm_ptl.core.render.context_management;
 
 import net.minecraft.client.CloudStatus;
-import com.mojang.blaze3d.buffers.GpuBuffer;
+import net.minecraft.client.renderer.MappableRingBuffer;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
@@ -28,10 +28,10 @@ public class CloudContext {
     public CloudStatus cloudStatus = null;
     public ResourceKey<Level> dimension = null;
 
-    // null when the cloud mesh is empty
+    // Since 1.21.6 the cloud mesh is in a texel buffer (CloudRenderer#utb).
     @Nullable
-    public GpuBuffer cloudsBuffer = null;
-    public int cloudsIndexCount = 0;
+    public MappableRingBuffer cloudsBuffer = null;
+    public int cloudsQuadCount = 0;
     
     public static final ArrayList<CloudContext> contexts = new ArrayList<>();
     

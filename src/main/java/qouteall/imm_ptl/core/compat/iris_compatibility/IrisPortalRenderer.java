@@ -277,7 +277,7 @@ public class IrisPortalRenderer extends PortalRenderer {
             ViewAreaRenderer.renderPortalArea(
                 portal, Vec3.ZERO,
                 modelView,
-                RenderSystem.getProjectionMatrix(),
+                MyRenderHelper.getLevelProjectionMatrix(),
                 true, true, true, true
             );
         });

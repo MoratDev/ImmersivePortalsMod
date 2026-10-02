@@ -412,7 +412,7 @@ public class PortalWandInteraction {
     }
     
     private static void handleFinishDrag(ServerPlayer player) {
-        DraggingSession session = of(player.server).draggingSessionMap.remove(player);
+        DraggingSession session = of(player.getServer()).draggingSessionMap.remove(player);
         
         if (session == null) {
             return;
@@ -426,7 +426,7 @@ public class PortalWandInteraction {
     }
     
     private static void handleUndoDrag(ServerPlayer player) {
-        PortalWandInteraction portalWandInteraction = of(player.server);
+        PortalWandInteraction portalWandInteraction = of(player.getServer());
         DraggingSession session = portalWandInteraction.draggingSessionMap.get(player);
         
         if (session == null) {
@@ -451,7 +451,7 @@ public class PortalWandInteraction {
     private static void handleDraggingRequest(
         ServerPlayer player, UUID portalId, Vec3 cursorPos, DraggingInfo draggingInfo, Portal portal
     ) {
-        PortalWandInteraction portalWandInteraction = of(player.server);
+        PortalWandInteraction portalWandInteraction = of(player.getServer());
         
         DraggingSession session = portalWandInteraction.draggingSessionMap.get(player);
         
@@ -545,7 +545,7 @@ public class PortalWandInteraction {
     }
     
     public static boolean isDragging(ServerPlayer player) {
-        return of(player.server).draggingSessionMap.containsKey(player);
+        return of(player.getServer()).draggingSessionMap.containsKey(player);
     }
     
     @Nullable

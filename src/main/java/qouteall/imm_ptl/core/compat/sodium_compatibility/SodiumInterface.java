@@ -4,7 +4,8 @@ import net.caffeinemc.mods.sodium.client.render.SodiumWorldRenderer;
 import net.caffeinemc.mods.sodium.client.render.chunk.RenderSectionManager;
 import net.caffeinemc.mods.sodium.client.render.chunk.map.ChunkStatus;
 import net.caffeinemc.mods.sodium.client.render.chunk.map.ChunkTrackerHolder;
-import net.caffeinemc.mods.sodium.client.render.texture.SpriteUtil;
+import net.caffeinemc.mods.sodium.api.texture.SpriteUtil;
+import net.caffeinemc.mods.sodium.client.util.FogParameters;
 import net.caffeinemc.mods.sodium.client.world.LevelRendererExtension;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -69,15 +70,25 @@ public class SodiumInterface {
             RenderSectionManager renderSectionManager =
                 ((IESodiumWorldRenderer) swr).ip_getRenderSectionManager();
             
-            ((IESodiumRenderSectionManager) renderSectionManager)
-                .ip_swapContext(((SodiumRenderingContext) context));
+            SodiumRenderingContext sodiumContext = (SodiumRenderingContext) context;
+
+            ((IESodiumRenderSectionManager) renderSectionManager).ip_swapContext(sodiumContext);
+
+            // Since Sodium 0.7 the world renderer keeps the fog parameters for drawing terrain.
+            // The outer world rendering draws the translucent terrain after rendering portals.
+            IESodiumWorldRenderer ieSwr = (IESodiumWorldRenderer) swr;
+            FogParameters currentFog = ieSwr.ip_getLastFogParameters();
+            if (sodiumContext.fogParameters != null) {
+                ieSwr.ip_setLastFogParameters(sodiumContext.fogParameters);
+            }
+            sodiumContext.fogParameters = currentFog;
             
             swr.scheduleTerrainUpdate();
         }
         
         @Override
         public void markSpriteActive(TextureAtlasSprite sprite) {
-            SpriteUtil.markSpriteActive(sprite);
+            SpriteUtil.INSTANCE.markSpriteActive(sprite);
         }
         
         @Override

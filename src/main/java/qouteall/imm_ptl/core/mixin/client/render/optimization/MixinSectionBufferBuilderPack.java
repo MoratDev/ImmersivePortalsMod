@@ -1,6 +1,6 @@
 package qouteall.imm_ptl.core.mixin.client.render.optimization;
 
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.SectionBufferBuilderPack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -20,10 +20,10 @@ public class MixinSectionBufferBuilderPack {
         method = "method_68707", // the lambda that creates the buffers
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/client/renderer/RenderType;bufferSize()I"
+            target = "Lnet/minecraft/client/renderer/chunk/ChunkSectionLayer;bufferSize()I"
         )
     )
-    private static int redirectBufferSize(RenderType instance) {
+    private static int redirectBufferSize(ChunkSectionLayer instance) {
         if (!IPGlobal.saveMemoryInBufferPack) {
             return instance.bufferSize();
         }

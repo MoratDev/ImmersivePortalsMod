@@ -170,7 +170,7 @@ public class ServerTeleportationManager {
             return;
         }
         
-        Portal portal = findPortal(player.server, dimensionBefore, portalId);
+        Portal portal = findPortal(player.getServer(), dimensionBefore, portalId);
         
         if (portal == null) {
             LOGGER.error(
@@ -333,7 +333,7 @@ public class ServerTeleportationManager {
         ResourceKey<Level> dimensionTo,
         Vec3 newEyePos
     ) {
-        MinecraftServer server = player.server;
+        MinecraftServer server = player.getServer();
         Profiler.get().push("portal_teleport");
         
         ServerLevel fromWorld = (ServerLevel) player.level();
@@ -379,7 +379,7 @@ public class ServerTeleportationManager {
         }
         
         ServerLevel fromWorld = (ServerLevel) player.level();
-        ServerLevel toWorld = player.server.getLevel(dimensionTo);
+        ServerLevel toWorld = player.getServer().getLevel(dimensionTo);
         
         if (toWorld == null) {
             LOGGER.error(
@@ -728,7 +728,7 @@ public class ServerTeleportationManager {
     
     public static Entity teleportEntityGeneral(Entity entity, Vec3 targetPos, ServerLevel targetWorld) {
         if (entity instanceof ServerPlayer serverPlayer) {
-            of(serverPlayer.server).forceTeleportPlayer(
+            of(serverPlayer.getServer()).forceTeleportPlayer(
                 serverPlayer, targetWorld.dimension(), targetPos
             );
             return entity;
@@ -792,7 +792,7 @@ public class ServerTeleportationManager {
         UUID chaserId = chaser.getUUID();
         ServerLevel destWorld = ((ServerLevel) portal.getDestinationWorld());
         
-        ServerTaskList.of(player.server).addTask(MyTaskList.withRetryNumberLimit(
+        ServerTaskList.of(player.getServer()).addTask(MyTaskList.withRetryNumberLimit(
             140,
             () -> {
                 if (chaser.isRemoved()) {

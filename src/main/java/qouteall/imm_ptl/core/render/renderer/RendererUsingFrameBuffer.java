@@ -105,7 +105,7 @@ public class RendererUsingFrameBuffer extends PortalRenderer {
             ViewAreaRenderer.renderPortalArea(
                 portal, Vec3.ZERO,
                 modelView,
-                RenderSystem.getProjectionMatrix(),
+                MyRenderHelper.getLevelProjectionMatrix(),
                 true, true,
                 true, true
             );
@@ -117,7 +117,7 @@ public class RendererUsingFrameBuffer extends PortalRenderer {
             portal,
             secondaryFrameBuffer.fb,
             modelView,
-            RenderSystem.getProjectionMatrix()
+            MyRenderHelper.getLevelProjectionMatrix()
         );
     }
     

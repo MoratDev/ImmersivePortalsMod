@@ -84,7 +84,7 @@ public abstract class PortalRenderer {
         Supplier<Frustum> frustumSupplier = Helper.cached(() -> {
             Frustum frustum = new Frustum(
                 modelView,
-                RenderSystem.getProjectionMatrix()
+                MyRenderHelper.getLevelProjectionMatrix()
             );
             
             Vec3 cameraPos = client.gameRenderer.getMainCamera().getPosition();

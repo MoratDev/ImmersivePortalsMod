@@ -1,5 +1,10 @@
 package qouteall.imm_ptl.core.mixin.common.collision;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import net.minecraft.world.entity.EntityReference;
+import net.minecraft.world.level.entity.UniquelyIdentifyable;
+import net.minecraft.world.level.entity.UUIDLookup;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -12,28 +17,38 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 public abstract class MixinProjectile extends MixinEntity {
     
     // make it recognize the owner in another dimension
-    // In 1.21.2+ the lookup is in findOwner
-    @Redirect(
-        method = "findOwner",
+    // In 1.21.2 ~ 1.21.5 the lookup was in findOwner.
+    // Since 1.21.6 the owner is an EntityReference that's resolved in getOwner.
+    @WrapOperation(
+        method = "getOwner",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/server/level/ServerLevel;getEntity(Ljava/util/UUID;)Lnet/minecraft/world/entity/Entity;"
+            target = "Lnet/minecraft/world/entity/EntityReference;get(Lnet/minecraft/world/entity/EntityReference;Lnet/minecraft/world/level/entity/UUIDLookup;Ljava/lang/Class;)Lnet/minecraft/world/level/entity/UniquelyIdentifyable;"
         )
     )
-    private Entity redirectGetEntityFromUuid(
-        net.minecraft.server.level.ServerLevel serverLevel,
-        java.util.UUID uuid
+    private UniquelyIdentifyable wrapGetOwner(
+        EntityReference<?> reference, UUIDLookup<?> uuidLookup, Class<?> entityClass,
+        Operation<UniquelyIdentifyable> original
     ) {
-        MinecraftServer server = serverLevel.getServer();
-        for (ServerLevel world : server.getAllLevels()) {
-            Entity entity = world.getEntity(uuid);
-            if (entity != null) {
-                return entity;
+        UniquelyIdentifyable result = original.call(reference, uuidLookup, entityClass);
+        if (result != null || reference == null) {
+            return result;
+        }
+
+        if (uuidLookup instanceof ServerLevel serverLevel) {
+            MinecraftServer server = serverLevel.getServer();
+            for (ServerLevel world : server.getAllLevels()) {
+                if (world != serverLevel) {
+                    result = original.call(reference, world, entityClass);
+                    if (result != null) {
+                        return result;
+                    }
+                }
             }
         }
         return null;
     }
-    
+
 //    @Shadow
 //    public abstract void onHit(HitResult hitResult);
 //

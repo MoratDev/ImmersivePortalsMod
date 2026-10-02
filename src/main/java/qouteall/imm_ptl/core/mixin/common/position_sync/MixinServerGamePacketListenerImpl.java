@@ -133,7 +133,7 @@ public abstract class MixinServerGamePacketListenerImpl implements IEServerPlayN
             // this actually never happens, because the vanilla client will disconnect immediately
             // when receiving the position sync packet that has the extra dimension field
             LOGGER.error("Player move packet is missing dimension info. Maybe the player client doesn't install iPortal");
-            ServerTaskList.of(player.server).addTask(() -> {
+            ServerTaskList.of(player.getServer()).addTask(() -> {
                 player.connection.disconnect(Component.literal(
                     "The client does not have Immersive Portals mod"
                 ));
@@ -160,7 +160,7 @@ public abstract class MixinServerGamePacketListenerImpl implements IEServerPlayN
                     "[ImmPtl] Force move player {} {} {}",
                     player, player.level().dimension().location(), player.position()
                 );
-                ServerTeleportationManager.of(player.server).forceTeleportPlayer(
+                ServerTeleportationManager.of(player.getServer()).forceTeleportPlayer(
                     player, player.level().dimension(), player.position()
                 );
                 ip_wrongMovePacketCount = 0;
@@ -219,12 +219,17 @@ public abstract class MixinServerGamePacketListenerImpl implements IEServerPlayN
     }
     
     @Inject(
-        method = "isPlayerCollidingWithAnythingNew", at = @At("HEAD"), cancellable = true
+        method = "isEntityCollidingWithAnythingNew", at = @At("HEAD"), cancellable = true
     )
     private void onIsPlayerCollidingWithAnythingNew(
-        LevelReader level, AABB playerBB, double newX, double newY, double newZ, CallbackInfoReturnable<Boolean> cir
+        LevelReader level, Entity entity, AABB playerBB, double newX, double newY, double newZ, CallbackInfoReturnable<Boolean> cir
     ) {
         if (!IPGlobal.crossPortalCollision) {
+            return;
+        }
+
+        // Since 1.21.6 vanilla also uses this method for the vehicle.
+        if (entity != player) {
             return;
         }
         
@@ -249,7 +254,9 @@ public abstract class MixinServerGamePacketListenerImpl implements IEServerPlayN
         }
         
         Iterable<VoxelShape> newBBCollisions =
-            level.getCollisions(this.player, activeNewBB.deflate(1.0E-5F));
+            level.getPreMoveCollisions(
+                this.player, activeNewBB.deflate(1.0E-5F), activePlayerBB.getBottomCenter()
+            );
         
         VoxelShape activePlayerBBShape = Shapes.create(activePlayerBB.deflate(1.0E-5F));
         
@@ -296,7 +303,7 @@ public abstract class MixinServerGamePacketListenerImpl implements IEServerPlayN
                 ip_dimOfAwaitingPosition, awaitingPositionFromClient
             );
             
-            ServerLevel destWorld = player.server.getLevel(ip_dimOfAwaitingPosition);
+            ServerLevel destWorld = player.getServer().getLevel(ip_dimOfAwaitingPosition);
             
             if (destWorld == null) {
                 LOGGER.error(
@@ -306,7 +313,7 @@ public abstract class MixinServerGamePacketListenerImpl implements IEServerPlayN
                 return;
             }
             
-            ServerTeleportationManager.of(player.server)
+            ServerTeleportationManager.of(player.getServer())
                 .forceTeleportPlayer(
                     player, ip_dimOfAwaitingPosition,
                     awaitingPositionFromClient, false

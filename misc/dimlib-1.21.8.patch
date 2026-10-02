@@ -1,0 +1,132 @@
+diff --git a/build.gradle b/build.gradle
+index 03a8fc8..8f1138a 100644
+--- a/build.gradle
++++ b/build.gradle
+@@ -1,5 +1,5 @@
+ plugins {
+-	id 'fabric-loom' version '1.8-SNAPSHOT'
++	id 'fabric-loom' version '1.13-SNAPSHOT'
+ 	id 'maven-publish'
+ 
+ 	id "me.modmuss50.mod-publish-plugin" version "0.3.5"
+@@ -34,7 +34,7 @@ dependencies {
+ 		officialMojangMappings() {
+ 			setNameSyntheticMembers(false)
+ 		}
+-		parchment("org.parchmentmc.data:parchment-1.20.1:2023.09.03")
++		parchment("org.parchmentmc.data:parchment-1.21.8:2025.09.14")
+ 	}
+ 
+ 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+diff --git a/gradle.properties b/gradle.properties
+index 3e4ba57..7057213 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -2,19 +2,19 @@
+ org.gradle.jvmargs=-Xmx1G
+ org.gradle.parallel=true
+ 
+-modmenu_version=12.0.0-beta.1
+-midnightlib_version=1.6.4-fabric
++modmenu_version=15.0.2
++midnightlib_version=1.9.3+1.21.8-fabric
+ 
+ mod_version=1.1.0
+ maven_group=qouteall.dimlib
+ archives_base_name=dimlib
+ 
+ # don't forget to update this if branch changes
+-git_branch=1.21.3
++git_branch=port/1.21.8
+ 
+-minecraft_version=1.21.3
+-yarn_mappings=1.21.3+build.2
+-loader_version=0.16.9
++minecraft_version=1.21.8
++yarn_mappings=1.21.8+build.1
++loader_version=0.19.5
+ 
+ # Fabric API
+-fabric_version=0.110.0+1.21.3
+\ No newline at end of file
++fabric_version=0.136.1+1.21.8
+\ No newline at end of file
+diff --git a/gradle/wrapper/gradle-wrapper.properties b/gradle/wrapper/gradle-wrapper.properties
+index df97d72..23449a2 100644
+--- a/gradle/wrapper/gradle-wrapper.properties
++++ b/gradle/wrapper/gradle-wrapper.properties
+@@ -1,6 +1,6 @@
+ distributionBase=GRADLE_USER_HOME
+ distributionPath=wrapper/dists
+-distributionUrl=https\://services.gradle.org/distributions/gradle-8.10.2-bin.zip
++distributionUrl=https\://services.gradle.org/distributions/gradle-9.2.1-bin.zip
+ networkTimeout=10000
+ validateDistributionUrl=true
+ zipStoreBase=GRADLE_USER_HOME
+diff --git a/src/main/java/qouteall/dimlib/DimLibNetworking.java b/src/main/java/qouteall/dimlib/DimLibNetworking.java
+index 23f9b32..007b208 100644
+--- a/src/main/java/qouteall/dimlib/DimLibNetworking.java
++++ b/src/main/java/qouteall/dimlib/DimLibNetworking.java
+@@ -83,12 +83,12 @@ public class DimLibNetworking {
+             ImmutableMap.Builder<ResourceKey<Level>, ResourceKey<DimensionType>> builder =
+                 new ImmutableMap.Builder<>();
+             
+-            for (String key : tag.getAllKeys()) {
++            for (String key : tag.keySet()) {
+                 ResourceKey<Level> dimId = ResourceKey.create(
+                     Registries.DIMENSION,
+                     ResourceLocation.parse(key)
+                 );
+-                String dimTypeId = tag.getString(key);
++                String dimTypeId = tag.getStringOr(key, "");
+                 ResourceKey<DimensionType> dimType = ResourceKey.create(
+                     Registries.DIMENSION_TYPE,
+                     ResourceLocation.parse(dimTypeId)
+@@ -108,7 +108,7 @@ public class DimLibNetworking {
+             
+             LOGGER.info(
+                 "Client received dimension info\n{}",
+-                String.join("\n", dimIdToTypeIdTag.getAllKeys())
++                String.join("\n", dimIdToTypeIdTag.keySet())
+             );
+             
+             var dimIdToDimType = this.toMap();
+diff --git a/src/main/java/qouteall/dimlib/DynamicDimensionsImpl.java b/src/main/java/qouteall/dimlib/DynamicDimensionsImpl.java
+index a4b499b..cdcef23 100644
+--- a/src/main/java/qouteall/dimlib/DynamicDimensionsImpl.java
++++ b/src/main/java/qouteall/dimlib/DynamicDimensionsImpl.java
+@@ -166,7 +166,7 @@ public class DynamicDimensionsImpl {
+             
+             try {
+                 while (world.getChunkSource().chunkMap.hasWork()) {
+-                    world.getChunkSource().removeTicketsOnClosing();
++                    world.getChunkSource().deactivateTicketsOnClosing();
+                     world.getChunkSource().tick(() -> true, false);
+                     world.getChunkSource().pollTask();
+                     server.pollTask();
+diff --git a/src/main/java/qouteall/dimlib/mixin/common/MixinPlayerList.java b/src/main/java/qouteall/dimlib/mixin/common/MixinPlayerList.java
+index 0ae7a2a..1c05f17 100644
+--- a/src/main/java/qouteall/dimlib/mixin/common/MixinPlayerList.java
++++ b/src/main/java/qouteall/dimlib/mixin/common/MixinPlayerList.java
+@@ -29,7 +29,7 @@ public class MixinPlayerList {
+     ) {
+         player.connection.send(
+             ServerPlayNetworking.createS2CPacket(
+-                DimLibNetworking.DimSyncPacket.createPacket(player.server)
++                DimLibNetworking.DimSyncPacket.createPacket(player.getServer())
+             )
+         );
+     }
+diff --git a/src/main/resources/fabric.mod.json b/src/main/resources/fabric.mod.json
+index fc0bf28..b02f029 100644
+--- a/src/main/resources/fabric.mod.json
++++ b/src/main/resources/fabric.mod.json
+@@ -31,7 +31,7 @@
+ 	],
+ 	"depends": {
+ 		"fabricloader": ">=0.15.0",
+-		"minecraft": ["1.21.3"],
++		"minecraft": ["1.21.8"],
+ 		"java": ">=17",
+ 		"fabric-api": "*"
+ 	},

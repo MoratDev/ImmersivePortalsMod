@@ -2239,7 +2239,7 @@ public class PortalCommand {
     public static void sendPortalInfo(Consumer<Component> func, Portal portal) {
         func.accept(
             McHelper.compoundTagToTextSorted(
-                portal.saveWithoutId(new CompoundTag()),
+                McHelper.saveEntityWithoutId(portal),
                 " ",
                 0
             )
@@ -2449,9 +2449,9 @@ public class PortalCommand {
     private static void updateEntityFullNbt(Entity entity, CompoundTag nbt) {
         nbt.remove("id");
         nbt.remove("UUID"); // not allowed to change UUID
-        CompoundTag result = entity.saveWithoutId(new CompoundTag());
+        CompoundTag result = McHelper.saveEntityWithoutId(entity);
         result.merge(nbt);
-        entity.load(result);
+        McHelper.loadEntity(entity, result);
     }
     
     private static void registerEulerCommands(LiteralArgumentBuilder<CommandSourceStack> builder) {

@@ -24,23 +24,23 @@ public abstract class MixinMainTarget {
         method = "allocateDepthAttachment",
         at = @At(
             value = "INVOKE",
-            target = "Lcom/mojang/blaze3d/systems/GpuDevice;createTexture(Ljava/util/function/Supplier;Lcom/mojang/blaze3d/textures/TextureFormat;III)Lcom/mojang/blaze3d/textures/GpuTexture;",
+            target = "Lcom/mojang/blaze3d/systems/GpuDevice;createTexture(Ljava/util/function/Supplier;ILcom/mojang/blaze3d/textures/TextureFormat;IIII)Lcom/mojang/blaze3d/textures/GpuTexture;",
             remap = false
         )
     )
     private GpuTexture wrapCreateDepthTexture(
-        GpuDevice device, Supplier<String> label, TextureFormat format,
-        int width, int height, int mipLevels,
+        GpuDevice device, Supplier<String> label, int usage, TextureFormat format,
+        int width, int height, int depthOrLayers, int mipLevels,
         Operation<GpuTexture> original
     ) {
         boolean isStencilBufferEnabled = ((IEFrameBuffer) this).ip_getIsStencilBufferEnabled();
 
         if (isStencilBufferEnabled) {
             return DepthStencilTextures.createDepthStencilTexture(
-                () -> original.call(device, label, format, width, height, mipLevels)
+                () -> original.call(device, label, usage, format, width, height, depthOrLayers, mipLevels)
             );
         }
 
-        return original.call(device, label, format, width, height, mipLevels);
+        return original.call(device, label, usage, format, width, height, depthOrLayers, mipLevels);
     }
 }

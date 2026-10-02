@@ -187,7 +187,7 @@ public class RendererUsingStencil extends PortalRenderer {
         ViewAreaRenderer.renderPortalArea(
             portal, Vec3.ZERO,
             modelView,
-            RenderSystem.getProjectionMatrix(),
+            MyRenderHelper.getLevelProjectionMatrix(),
             true, true,
             true, true
         );
@@ -222,7 +222,7 @@ public class RendererUsingStencil extends PortalRenderer {
         ViewAreaRenderer.renderPortalArea(
             portal, Vec3.ZERO,
             modelView,
-            RenderSystem.getProjectionMatrix(),
+            MyRenderHelper.getLevelProjectionMatrix(),
             false, false,
             true,
             true, // important: should clip, otherwise depth will be abnormal when viewing scale box from inside in portal

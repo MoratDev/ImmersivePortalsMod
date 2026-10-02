@@ -1,5 +1,7 @@
 package qouteall.imm_ptl.core.mixin.common.portal_generation;
 
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityReference;
 import net.minecraft.util.profiling.Profiler;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
@@ -20,7 +22,7 @@ public abstract class MixinItemEntity_P {
     public abstract ItemStack getItem();
     
     @Shadow
-    private @Nullable UUID thrower;
+    private @Nullable EntityReference<Entity> thrower;
     
     @Inject(
         method = "Lnet/minecraft/world/entity/item/ItemEntity;tick()V",

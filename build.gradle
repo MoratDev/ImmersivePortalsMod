@@ -101,7 +101,7 @@ dependencies {
         officialMojangMappings() {
             setNameSyntheticMembers(false)
         }
-        parchment("org.parchmentmc.data:parchment-1.21.5:2025.06.15")
+        parchment("org.parchmentmc.data:parchment-1.21.8:2025.09.14")
     }
 
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
@@ -142,8 +142,8 @@ dependencies {
     if (project.enable_iris.equals('true')) {
         modLocalRuntime "${project.iris_path}"
         implementation "org.anarres:jcpp:1.4.14" // for iris
-        implementation 'io.github.douira:glsl-transformer:2.0.0-pre13' // for iris
-        implementation 'org.antlr:antlr4-runtime:4.11.1' // for iris
+        implementation 'io.github.douira:glsl-transformer:3.0.0-pre3' // for iris
+        implementation 'org.antlr:antlr4-runtime:4.13.1' // for iris
     }
 
     if (project.enable_gravity_changer.equals('true')) {
@@ -203,6 +203,10 @@ java {
     // if it is present.
     // If you remove this line, sources will not be generated.
     withSourcesJar()
+
+    // glsl-transformer 3 (a dev runtime dependency of Iris 1.9) is built for Java 21.
+    // The mod itself still targets Java 17 class files.
+    disableAutoTargetJvm()
 
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17

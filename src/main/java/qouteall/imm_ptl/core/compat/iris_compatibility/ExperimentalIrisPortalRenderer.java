@@ -102,7 +102,7 @@ public class ExperimentalIrisPortalRenderer extends PortalRenderer {
         ViewAreaRenderer.renderPortalArea(
             portal, Vec3.ZERO,
             modelView,
-            RenderSystem.getProjectionMatrix(),
+            MyRenderHelper.getLevelProjectionMatrix(),
             false,
             false,
             true,
@@ -276,7 +276,7 @@ public class ExperimentalIrisPortalRenderer extends PortalRenderer {
         ViewAreaRenderer.renderPortalArea(
             portal, Vec3.ZERO,
             modelView,
-            RenderSystem.getProjectionMatrix(),
+            MyRenderHelper.getLevelProjectionMatrix(),
             true,
             false, // don't modify color
             true,

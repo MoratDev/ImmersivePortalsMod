@@ -261,7 +261,7 @@ public class GlobalPortalStorage extends SavedData {
         EntityType<?> entityType = BuiltInRegistries.ENTITY_TYPE.getValue(entityId);
         
         Entity e = entityType.create(currWorld, EntitySpawnReason.LOAD);
-        e.load(compoundTag);
+        McHelper.loadEntity(e, compoundTag);
         
         ((Portal) e).isGlobalPortal = true;
         
@@ -283,8 +283,7 @@ public class GlobalPortalStorage extends SavedData {
         
         for (Portal portal : data) {
             Validate.isTrue(portal.level() == currWorld);
-            CompoundTag portalTag = new CompoundTag();
-            portal.saveWithoutId(portalTag);
+            CompoundTag portalTag = McHelper.saveEntityWithoutId(portal);
             portalTag.putString(
                 "entity_type",
                 EntityType.getKey(portal.getType()).toString()

@@ -406,12 +406,42 @@ public class McHelper {
     }
     
     
+    /**
+     * Since 1.21.6 entity data is read from ValueInput and written into ValueOutput.
+     * This codec reads/writes all the fields as one tag, so the saved data format is unchanged.
+     */
+    private static final com.mojang.serialization.MapCodec<CompoundTag> WHOLE_TAG_CODEC =
+        com.mojang.serialization.MapCodec.assumeMapUnsafe(CompoundTag.CODEC);
+    
+    public static CompoundTag readWholeTag(net.minecraft.world.level.storage.ValueInput input) {
+        return input.read(WHOLE_TAG_CODEC).orElseGet(CompoundTag::new);
+    }
+    
+    public static void writeWholeTag(net.minecraft.world.level.storage.ValueOutput output, CompoundTag tag) {
+        output.store(WHOLE_TAG_CODEC, tag);
+    }
+    
+    public static CompoundTag saveEntityWithoutId(Entity entity) {
+        net.minecraft.world.level.storage.TagValueOutput output =
+            net.minecraft.world.level.storage.TagValueOutput.createWithContext(
+                net.minecraft.util.ProblemReporter.DISCARDING, entity.registryAccess()
+            );
+        entity.saveWithoutId(output);
+        return output.buildResult();
+    }
+    
+    public static void loadEntity(Entity entity, CompoundTag tag) {
+        entity.load(net.minecraft.world.level.storage.TagValueInput.create(
+            net.minecraft.util.ProblemReporter.DISCARDING, entity.registryAccess(), tag
+        ));
+    }
+    
     public static Portal copyEntity(Portal portal) {
         Portal newPortal = ((Portal) portal.getType().create(portal.level(), EntitySpawnReason.TRIGGERED));
         
         Validate.notNull(newPortal);
         
-        newPortal.load(portal.saveWithoutId(new CompoundTag()));
+        loadEntity(newPortal, saveEntityWithoutId(portal));
         return newPortal;
     }
     

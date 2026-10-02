@@ -163,7 +163,7 @@ public abstract class MixinEntity implements IEEntity, ImmPtlEntityExtension {
     // Since 1.21.2 checkInsideBlocks(List, Set) traverses the blocks along each movement in the tick,
     // using the bounding box in the end position of each movement.
     @Inject(
-        method = "checkInsideBlocks",
+        method = "checkInsideBlocks(Ljava/util/List;Lnet/minecraft/world/entity/InsideBlockEffectApplier$StepBasedCollector;)V",
         at = @At("HEAD"),
         cancellable = true
     )
@@ -175,7 +175,7 @@ public abstract class MixinEntity implements IEEntity, ImmPtlEntityExtension {
     }
 
     @WrapOperation(
-        method = "checkInsideBlocks",
+        method = "checkInsideBlocks(Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/world/entity/InsideBlockEffectApplier$StepBasedCollector;Lit/unimi/dsi/fastutil/longs/LongSet;)V",
         at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/world/entity/Entity;makeBoundingBox(Lnet/minecraft/world/phys/Vec3;)Lnet/minecraft/world/phys/AABB;"

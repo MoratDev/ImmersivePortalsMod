@@ -28,7 +28,7 @@ public class MixinGlDevice_Stencil {
 
     // createTexture implements a method of a non-obfuscated interface
     @ModifyArgs(
-        method = "createTexture(Ljava/lang/String;Lcom/mojang/blaze3d/textures/TextureFormat;III)Lcom/mojang/blaze3d/textures/GpuTexture;",
+        method = "createTexture(Ljava/lang/String;ILcom/mojang/blaze3d/textures/TextureFormat;IIII)Lcom/mojang/blaze3d/textures/GpuTexture;",
         at = @At(
             value = "INVOKE",
             target = "Lcom/mojang/blaze3d/opengl/GlStateManager;_texImage2D(IIIIIIIILjava/nio/IntBuffer;)V"
@@ -44,12 +44,12 @@ public class MixinGlDevice_Stencil {
     }
 
     @Inject(
-        method = "createTexture(Ljava/lang/String;Lcom/mojang/blaze3d/textures/TextureFormat;III)Lcom/mojang/blaze3d/textures/GpuTexture;",
+        method = "createTexture(Ljava/lang/String;ILcom/mojang/blaze3d/textures/TextureFormat;IIII)Lcom/mojang/blaze3d/textures/GpuTexture;",
         at = @At("RETURN"),
         remap = false
     )
     private void onTextureCreated(
-        String label, TextureFormat format, int width, int height, int mipLevels,
+        String label, int usage, TextureFormat format, int width, int height, int depthOrLayers, int mipLevels,
         CallbackInfoReturnable<GpuTexture> cir
     ) {
         if (DepthStencilTextures.isCreatingDepthStencilTexture()) {

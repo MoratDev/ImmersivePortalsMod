@@ -4,7 +4,7 @@ import net.minecraft.client.renderer.culling.Frustum;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.resource.ResourceHandle;
 import net.minecraft.util.profiling.ProfilerFiller;
-import net.minecraft.client.renderer.FogParameters;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.renderer.GameRenderer;
@@ -23,8 +23,8 @@ public class MixinLevelRenderer_BeforeIris {
     // In 1.21.2+ it's in the lambda in addMainPass
     @Inject(method = "method_62214", at = @At(value = "CONSTANT", args = "stringValue=translucent"))
     private void iris$beginTranslucents(
-        FogParameters fogParameters, DeltaTracker deltaTracker, Camera camera, ProfilerFiller profilerFiller,
-        Matrix4f modelView, Matrix4f matrix4f2,
+        GpuBufferSlice fog, DeltaTracker deltaTracker, Camera camera, ProfilerFiller profilerFiller,
+        Matrix4f modelView,
         ResourceHandle<RenderTarget> resourceHandle, ResourceHandle<RenderTarget> resourceHandle2,
         boolean bl, Frustum frustum,
         ResourceHandle<RenderTarget> resourceHandle3, ResourceHandle<RenderTarget> resourceHandle4,
