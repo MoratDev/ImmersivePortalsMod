@@ -1,5 +1,7 @@
 package qouteall.imm_ptl.peripheral.wand;
 
+import java.util.function.Consumer;
+import net.minecraft.world.item.component.TooltipDisplay;
 import qouteall.imm_ptl.core.McHelper;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.core.registries.Registries;
@@ -105,7 +107,7 @@ public class PortalWandItem extends Item {
         public static final Mode FALLBACK = CREATE_PORTAL;
         
         public static Mode fromTag(CompoundTag tag) {
-            String mode = tag.getString("mode");
+            String mode = tag.getStringOr("mode", "");
             
             return fromStr(mode);
         }
@@ -228,16 +230,16 @@ public class PortalWandItem extends Item {
     @Override
     public void appendHoverText(
         ItemStack stack, Item.TooltipContext tooltipContext,
-        List<Component> tooltip, TooltipFlag tooltipFlag
+        TooltipDisplay tooltipDisplay, Consumer<Component> tooltip, TooltipFlag tooltipFlag
     ) {
-        super.appendHoverText(stack, tooltipContext, tooltip, tooltipFlag);
-        
-        tooltip.add(Component.translatable(
+        super.appendHoverText(stack, tooltipContext, tooltipDisplay, tooltip, tooltipFlag);
+
+        tooltip.accept(Component.translatable(
             "imm_ptl.wand.item_desc_1",
             Minecraft.getInstance().options.keyShift.getTranslatedKeyMessage(),
             Minecraft.getInstance().options.keyUse.getTranslatedKeyMessage()
         ));
-        tooltip.add(Component.translatable(
+        tooltip.accept(Component.translatable(
             "imm_ptl.wand.item_desc_2",
             Minecraft.getInstance().options.keyShift.getTranslatedKeyMessage(),
             Minecraft.getInstance().options.keyAttack.getTranslatedKeyMessage()

@@ -1,5 +1,7 @@
 package qouteall.imm_ptl.core.chunk_loading;
 
+import net.minecraft.world.level.levelgen.Heightmap;
+import java.util.Map;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -139,7 +141,7 @@ public class ImmPtlClientChunkMap extends ClientChunkCache {
     @Override
     public LevelChunk replaceWithPacketData(
         int x, int z,
-        FriendlyByteBuf buf, CompoundTag nbt,
+        FriendlyByteBuf buf, Map<Heightmap.Types, long[]> nbt,
         Consumer<ClientboundLevelChunkPacketData.BlockEntityTagOutput> consumer
     ) {
         Validate.isTrue(Thread.currentThread() == mainThread);
@@ -175,7 +177,7 @@ public class ImmPtlClientChunkMap extends ClientChunkCache {
      */
     private void loadChunkDataFromPacket(
         FriendlyByteBuf buf,
-        CompoundTag nbt,
+        Map<Heightmap.Types, long[]> nbt,
         LevelChunk worldChunk,
         Consumer<ClientboundLevelChunkPacketData.BlockEntityTagOutput> consumer
     ) {

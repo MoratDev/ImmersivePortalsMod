@@ -1,7 +1,7 @@
 package qouteall.imm_ptl.core.render.context_management;
 
 import net.minecraft.client.CloudStatus;
-import com.mojang.blaze3d.vertex.VertexBuffer;
+import com.mojang.blaze3d.buffers.GpuBuffer;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
@@ -28,8 +28,10 @@ public class CloudContext {
     public CloudStatus cloudStatus = null;
     public ResourceKey<Level> dimension = null;
 
-    public VertexBuffer cloudsBuffer = null;
-    public boolean cloudsBufferEmpty = false;
+    // null when the cloud mesh is empty
+    @Nullable
+    public GpuBuffer cloudsBuffer = null;
+    public int cloudsIndexCount = 0;
     
     public static final ArrayList<CloudContext> contexts = new ArrayList<>();
     

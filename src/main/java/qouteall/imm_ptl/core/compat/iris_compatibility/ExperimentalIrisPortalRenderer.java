@@ -1,6 +1,6 @@
 package qouteall.imm_ptl.core.compat.iris_compatibility;
 
-import com.mojang.blaze3d.platform.GlStateManager;
+import qouteall.imm_ptl.core.render.IPRenderPipelines;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.irisshaders.iris.Iris;
 import net.irisshaders.iris.pipeline.IrisRenderingPipeline;
@@ -78,12 +78,10 @@ public class ExperimentalIrisPortalRenderer extends PortalRenderer {
             IPPortingLibCompat.setIsStencilEnabled(client.getMainRenderTarget(), true);
         }
         
-        client.getMainRenderTarget().bindWrite(false);
-        
-        GL11.glClearStencil(0);
-        GL11.glClear(GL11.GL_STENCIL_BUFFER_BIT);
-        
-        GlStateManager._enableDepthTest();
+        MyRenderHelper.bindWrite(client.getMainRenderTarget());
+
+        MyRenderHelper.clearStencil(client.getMainRenderTarget());
+
         GL11.glEnable(GL_STENCIL_TEST);
         
     }
@@ -96,14 +94,11 @@ public class ExperimentalIrisPortalRenderer extends PortalRenderer {
     protected void restoreDepthOfPortalViewArea(
         Portal portal, Matrix4f modelView
     ) {
-        client.getMainRenderTarget().bindWrite(false);
-        
+        MyRenderHelper.bindWrite(client.getMainRenderTarget());
+
         setStencilStateForWorldRendering();
-        
-        int originalDepthFunc = GL11.glGetInteger(GL_DEPTH_FUNC);
-        
-        GL11.glDepthFunc(GL_ALWAYS);
-        
+
+        // always passes depth test
         ViewAreaRenderer.renderPortalArea(
             portal, Vec3.ZERO,
             modelView,
@@ -111,10 +106,9 @@ public class ExperimentalIrisPortalRenderer extends PortalRenderer {
             false,
             false,
             true,
-            true // important: should clip, otherwise depth will be abnormal when viewing scale box from inside in portal
+            true, // important: should clip, otherwise depth will be abnormal when viewing scale box from inside in portal
+            IPRenderPipelines.DepthMode.ALWAYS
         );
-        
-        GL11.glDepthFunc(originalDepthFunc);
     }
     
     @Override
@@ -157,9 +151,6 @@ public class ExperimentalIrisPortalRenderer extends PortalRenderer {
     }
     
     protected void doPortalRendering(Matrix4f modelView) {
-        RenderSystem.enableDepthTest();
-        RenderSystem.depthMask(true);
-        
         Profiler.get().popPush("render_portal_total");
         renderPortals(modelView);
     }
@@ -169,7 +160,6 @@ public class ExperimentalIrisPortalRenderer extends PortalRenderer {
         GL11.glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
         
         GL11.glDisable(GL_STENCIL_TEST);
-        GlStateManager._enableDepthTest();
     }
     
     protected void renderPortals(Matrix4f modelView) {
@@ -297,36 +287,25 @@ public class ExperimentalIrisPortalRenderer extends PortalRenderer {
     private void clearDepthOfThePortalViewArea(
         Portal portal
     ) {
-        GlStateManager._enableDepthTest();
-        GlStateManager._depthMask(true);
-        
         setStencilStateForWorldRendering();
-        
-        //do not manipulate color buffer
-        GL11.glColorMask(false, false, false, false);
-        
-        //save the state
-        int originalDepthFunc = GL11.glGetInteger(GL_DEPTH_FUNC);
-        
-        //always passes depth test
-        GL11.glDepthFunc(GL_ALWAYS);
-        
+
         //the pixel's depth will be 1, which is the furthest
         GL11.glDepthRange(1, 1);
-        
-        MyRenderHelper.renderScreenTriangle();
-        
+
+        //do not manipulate color buffer
+        //always passes depth test
+        MyRenderHelper.renderScreenTriangle(
+            255, 255, 255, 255,
+            false, true, IPRenderPipelines.DepthMode.ALWAYS
+        );
+
         //retrieve the state
-        GL11.glColorMask(true, true, true, true);
-        GL11.glDepthFunc(originalDepthFunc);
         GL11.glDepthRange(0, 1);
     }
     
     public static void clampStencilValue(
         int maximumValue
     ) {
-        GlStateManager._depthMask(true);
-        
         //NOTE GL_GREATER means ref > stencil
         //GL_LESS means ref < stencil
         
@@ -337,20 +316,12 @@ public class ExperimentalIrisPortalRenderer extends PortalRenderer {
         GL11.glStencilOp(GL_KEEP, GL_REPLACE, GL_REPLACE);
         
         //do not manipulate the depth buffer
-        GL11.glDepthMask(false);
-        
         //do not manipulate the color buffer
-        GL11.glColorMask(false, false, false, false);
-        
-        GlStateManager._disableDepthTest();
-        
-        MyRenderHelper.renderScreenTriangle();
-        
-        GL11.glDepthMask(true);
-        
-        GL11.glColorMask(true, true, true, true);
-        
-        GlStateManager._enableDepthTest();
+        //no depth test
+        MyRenderHelper.renderScreenTriangle(
+            255, 255, 255, 255,
+            false, false, IPRenderPipelines.DepthMode.DISABLED
+        );
     }
     
     private void setStencilStateForWorldRendering() {

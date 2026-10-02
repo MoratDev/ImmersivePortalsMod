@@ -3,11 +3,9 @@ package qouteall.imm_ptl.core.mixin.client.render;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.ViewArea;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.world.phys.Vec3;
-import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -15,7 +13,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import qouteall.imm_ptl.core.render.FrontClipping;
 import qouteall.imm_ptl.core.render.context_management.PortalRendering;
 import qouteall.imm_ptl.core.render.context_management.RenderStates;
 import qouteall.imm_ptl.core.render.context_management.WorldRenderInfo;
@@ -67,20 +64,9 @@ public class MixinLevelRenderer_Optional {
         chunkBuilder.setCamera(cameraPosition);
     }
     
-    @Inject(
-        method = "renderSectionLayer",
-        at = @At(
-            value = "INVOKE",
-            target = "Lnet/minecraft/client/renderer/CompiledShaderProgram;apply()V"
-        ),
-        require = 0
-    )
-    private void onGetShaderInRenderingLayer(
-        RenderType renderType, double x, double y, double z, Matrix4f frustrumMatrix, Matrix4f projectionMatrix, CallbackInfo ci
-    ) {
-        FrontClipping.updateClippingEquationUniformForCurrentShader(false);
-    }
-    
+    // Before 1.21.5 there was an injection in renderSectionLayer that updates the clipping uniform.
+    // Now the uniform is updated before every draw. See MixinGlProgram.
+
     // In 1.21.1 setupRender used the player position to update ViewArea
     // and it was redirected to the camera position here during portal rendering.
     // Since 1.21.2 vanilla uses the camera position, so the 3 redirects are not needed.

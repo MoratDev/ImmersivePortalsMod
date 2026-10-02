@@ -1,7 +1,8 @@
 package qouteall.imm_ptl.core.compat.iris_compatibility;
 
+import qouteall.imm_ptl.core.render.MyRenderHelper;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.opengl.GlStateManager;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL30C;
@@ -17,8 +18,6 @@ public class IPIrisHelper {
         RenderTarget from, RenderTarget to,
         boolean copyDepth, boolean copyStencil
     ) {
-        from.unbindWrite();
-        
         int mask = 0;
         
         if (copyDepth) {
@@ -38,18 +37,32 @@ public class IPIrisHelper {
             }
         }
         
-        GlStateManager._glBindFramebuffer(GL30C.GL_READ_FRAMEBUFFER, from.frameBufferId);
-        GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, to.frameBufferId);
-        
-        GL30.glBlitFramebuffer(
-            0, 0, from.width, from.height,
-            0, 0, to.width, to.height,
-            mask, GL_NEAREST
-        );
-        
-        from.unbindWrite();
+        blitFramebuffer(from, to, from.width, from.height, to.width, to.height, mask);
     }
     
+    /**
+     * Since 1.21.5 the render target doesn't own a framebuffer object.
+     * It uses the framebuffer objects that vanilla uses for drawing to the render target.
+     * The binding goes through GlStateManager because it caches the bound framebuffers.
+     */
+    public static void blitFramebuffer(
+        RenderTarget from, RenderTarget to,
+        int fromWidth, int fromHeight, int toWidth, int toHeight,
+        int mask
+    ) {
+        GlStateManager._disableScissorTest();
+        GlStateManager._glBindFramebuffer(GL30C.GL_READ_FRAMEBUFFER, MyRenderHelper.getFramebufferId(from));
+        GlStateManager._glBindFramebuffer(GL30C.GL_DRAW_FRAMEBUFFER, MyRenderHelper.getFramebufferId(to));
+
+        GL30.glBlitFramebuffer(
+            0, 0, fromWidth, fromHeight,
+            0, 0, toWidth, toHeight,
+            mask, GL_NEAREST
+        );
+
+        MyRenderHelper.unbindGlFramebuffer();
+    }
+
     private static boolean isCopyImageSubDataSupported() {
         return GL.getCapabilities().glCopyImageSubData != 0;
     }
@@ -58,13 +71,13 @@ public class IPIrisHelper {
         RenderTarget from, RenderTarget to
     ) {
         GL43C.glCopyImageSubData(
-            from.getDepthTextureId(),
+            MyRenderHelper.getDepthTextureId(from),
             GL43C.GL_TEXTURE_2D,
             0,
             0,
             0,
             0,
-            to.getDepthTextureId(),
+            MyRenderHelper.getDepthTextureId(to),
             GL43C.GL_TEXTURE_2D,
             0,
             0,
@@ -80,13 +93,13 @@ public class IPIrisHelper {
         RenderTarget from, RenderTarget to
     ) {
         GL43C.glCopyImageSubData(
-            from.getColorTextureId(),
+            MyRenderHelper.getColorTextureId(from),
             GL43C.GL_TEXTURE_2D,
             0,
             0,
             0,
             0,
-            to.getColorTextureId(),
+            MyRenderHelper.getColorTextureId(to),
             GL43C.GL_TEXTURE_2D,
             0,
             0,

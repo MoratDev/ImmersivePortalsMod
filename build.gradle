@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.10-SNAPSHOT'
+    id 'fabric-loom' version '1.13-SNAPSHOT'
 
     id 'maven-publish'
 
@@ -101,7 +101,7 @@ dependencies {
         officialMojangMappings() {
             setNameSyntheticMembers(false)
         }
-        parchment("org.parchmentmc.data:parchment-1.21.4:2025.03.23")
+        parchment("org.parchmentmc.data:parchment-1.21.5:2025.06.15")
     }
 
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
@@ -179,6 +179,8 @@ dependencies {
     }
     testImplementation(platform('org.junit:junit-bom:5.10.0'))
     testImplementation('org.junit.jupiter:junit-jupiter')
+    // Gradle 9 doesn't provide the launcher
+    testRuntimeOnly('org.junit.platform:junit-platform-launcher')
 
     // the mods that are used by runProductionClientGameTest (it uses the remapped jars, not the dev ones)
     productionRuntimeMods "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
@@ -266,6 +268,12 @@ task printClasspath {
 }
 
 // Enable ZGC: -XX:+UseZGC
+
+// Gradle 9 fails the test task when the test sources exist but no test is discovered.
+// The unit tests are only run with gradle/unit-tests.init.gradle
+tasks.withType(Test).configureEach {
+    failOnNoDiscoveredTests = false
+}
 
 // run test when building will slow down the build process
 // manually run when needed

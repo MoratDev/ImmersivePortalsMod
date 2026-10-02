@@ -1,5 +1,7 @@
 package qouteall.imm_ptl.core.commands;
 
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.Util;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -26,7 +28,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.Ticket;
 import net.minecraft.server.level.TicketType;
-import net.minecraft.util.SortedArraySet;
 import net.minecraft.util.profiling.ActiveProfiler;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ChunkPos;
@@ -458,23 +459,25 @@ public class PortalDebugCommands {
                 ServerLevel world = context.getSource().getLevel();
                 Iterable<ChunkHolder> chunkHolders = ((IEChunkMap_Accessor) world.getChunkSource().chunkMap).ip_getChunks();
                 
-                Object2IntOpenHashMap<TicketType<?>> stat = new Object2IntOpenHashMap<>();
+                Object2IntOpenHashMap<TicketType> stat= new Object2IntOpenHashMap<>();
                 for (ChunkHolder chunkHolder : chunkHolders) {
                     long chunkPos = chunkHolder.getPos().toLong();
-                    SortedArraySet<Ticket<?>> chunkTickets =
+                    List<Ticket> chunkTickets =
                         ((IEDistanceManager) getDistanceManager(world))
                             .portal_getTicketSet(chunkPos);
                     
-                    for (Ticket<?> ticket : chunkTickets) {
+                    for (Ticket ticket : chunkTickets) {
                         stat.addTo(ticket.getType(), 1);
                     }
                 }
                 
                 context.getSource().sendSuccess(() -> Component.literal(""), false);
-                for (Object2IntMap.Entry<TicketType<?>> entry : stat.object2IntEntrySet()) {
-                    TicketType<?> ticketType = entry.getKey();
+                for (Object2IntMap.Entry<TicketType> entry : stat.object2IntEntrySet()) {
+                    TicketType ticketType = entry.getKey();
+                    // the ticket type is a record now. its toString doesn't tell its name
+                    String name = Util.getRegisteredName(BuiltInRegistries.TICKET_TYPE, ticketType);
                     context.getSource().sendSuccess(
-                        () -> Component.literal(ticketType.toString() + " " + entry.getIntValue()),
+                        () -> Component.literal(name + " " + entry.getIntValue()),
                         false
                     );
                 }
@@ -729,8 +732,8 @@ public class PortalDebugCommands {
             
             DistanceManager distanceManager =
                 ((IEServerChunkCache) world.getChunkSource()).ip_getDistanceManager();
-            SortedArraySet<Ticket<?>> tickets = ((IEDistanceManager) distanceManager).portal_getTicketSet(longChunkPos);
-            for (Ticket<?> ticket : tickets) {
+            List<Ticket> tickets = ((IEDistanceManager) distanceManager).portal_getTicketSet(longChunkPos);
+            for (Ticket ticket : tickets) {
                 McHelper.serverLog(
                     player,
                     ticket.toString()

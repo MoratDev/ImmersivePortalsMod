@@ -1,5 +1,7 @@
 package qouteall.imm_ptl.core;
 
+import net.minecraft.world.entity.InterpolationHandler;
+import java.net.URI;
 import net.minecraft.world.entity.EntitySpawnReason;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -303,6 +305,17 @@ public class McHelper {
         return vehicleAttachmentPoint;
     }
     
+    /**
+     * Before 1.21.5 this was done by calling lerpTo with the current position and 0 steps.
+     * Now the interpolation is in {@link net.minecraft.world.entity.InterpolationHandler}.
+     */
+    public static void cancelPositionInterpolation(Entity entity) {
+        InterpolationHandler interpolation = entity.getInterpolation();
+        if (interpolation != null) {
+            interpolation.cancel();
+        }
+    }
+
     public static void adjustVehicle(Entity entity) {
         Entity vehicle = entity.getVehicle();
         if (vehicle == null) {
@@ -319,10 +332,7 @@ public class McHelper {
         // minecarts, boats and LivingEntity use position interpolation
         // don't make interpolate, or it may interpolate into unloaded chunks
         vehicle.setPos(newVehiclePos.x(), newVehiclePos.y(), newVehiclePos.z());
-        vehicle.lerpTo(
-            newVehiclePos.x(), newVehiclePos.y(), newVehiclePos.z(),
-            vehicle.getYRot(), vehicle.getXRot(), 0
-        );
+        cancelPositionInterpolation(vehicle);
         
         McHelper.setPosAndLastTickPos(
             vehicle, newVehiclePos, newVehicleLastTickPos
@@ -423,9 +433,9 @@ public class McHelper {
     
     public static MutableComponent getLinkText(String link) {
         return Component.literal(link).withStyle(
-            style -> style.withClickEvent(new ClickEvent(
-                ClickEvent.Action.OPEN_URL, link
-            )).withUnderlined(true)
+            style -> style.withClickEvent(
+                new ClickEvent.OpenUrl(URI.create(link))
+            ).withUnderlined(true)
         );
     }
     

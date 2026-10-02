@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.portal.global_portals;
 
+import net.minecraft.world.level.saveddata.SavedDataType;
 import net.minecraft.world.entity.EntitySpawnReason;
 import com.mojang.logging.LogUtils;
 import net.fabricmc.api.EnvType;
@@ -95,22 +96,30 @@ public class GlobalPortalStorage extends SavedData {
     public static GlobalPortalStorage get(
         ServerLevel world
     ) {
-        return world.getDataStorage().computeIfAbsent(
-            new SavedData.Factory<>(
-                () -> {
-                    LOGGER.info("Global portal storage initialized {}", world.dimension().location());
-                    return new GlobalPortalStorage(world);
-                },
-                (nbt, holderLookup) -> {
-                    GlobalPortalStorage globalPortalStorage = new GlobalPortalStorage(world);
-                    globalPortalStorage.fromNbt(nbt);
-                    return globalPortalStorage;
-                },
-                null
-            ),
-            "global_portal"
-        );
+        return world.getDataStorage().computeIfAbsent(TYPE);
     }
+
+    // Since 1.21.5 the saved data is serialized by a codec.
+    // The codec wraps the old NBT reading and writing, so the file format doesn't change.
+    // No data fixer type (Fabric API handles the null).
+    public static final SavedDataType<GlobalPortalStorage> TYPE = new SavedDataType<>(
+        "global_portal",
+        context -> {
+            ServerLevel world = context.levelOrThrow();
+            LOGGER.info("Global portal storage initialized {}", world.dimension().location());
+            return new GlobalPortalStorage(world);
+        },
+        context -> CompoundTag.CODEC.xmap(
+            nbt -> {
+                ServerLevel world = context.levelOrThrow();
+                GlobalPortalStorage globalPortalStorage = new GlobalPortalStorage(world);
+                globalPortalStorage.fromNbt(nbt);
+                return globalPortalStorage;
+            },
+            storage -> storage.save(new CompoundTag(), context.levelOrThrow().registryAccess())
+        ),
+        null
+    );
     
     @Environment(EnvType.CLIENT)
     private static void initClient() {
@@ -209,13 +218,13 @@ public class GlobalPortalStorage extends SavedData {
         data = newData;
         
         if (tag.contains("version")) {
-            version = tag.getInt("version");
+            version = tag.getIntOr("version", 0);
         }
         
         if (tag.contains("bedrockReplacement")) {
             bedrockReplacement = NbtUtils.readBlockState(
                 currWorld.holderLookup(Registries.BLOCK),
-                tag.getCompound("bedrockReplacement")
+                tag.getCompoundOrEmpty("bedrockReplacement")
             );
         }
         else {
@@ -230,12 +239,12 @@ public class GlobalPortalStorage extends SavedData {
         Level currWorld
     ) {
         /**{@link CompoundTag#getType()}*/
-        ListTag listTag = tag.getList("data", 10);
+        ListTag listTag = tag.getListOrEmpty("data");
         
         List<Portal> newData = new ArrayList<>();
         
         for (int i = 0; i < listTag.size(); i++) {
-            CompoundTag compoundTag = listTag.getCompound(i);
+            CompoundTag compoundTag = listTag.getCompoundOrEmpty(i);
             Portal e = readPortalFromTag(currWorld, compoundTag);
             if (e != null) {
                 newData.add(e);
@@ -248,7 +257,7 @@ public class GlobalPortalStorage extends SavedData {
     }
     
     private static Portal readPortalFromTag(Level currWorld, CompoundTag compoundTag) {
-        ResourceLocation entityId = McHelper.newResourceLocation(compoundTag.getString("entity_type"));
+        ResourceLocation entityId = McHelper.newResourceLocation(compoundTag.getStringOr("entity_type", ""));
         EntityType<?> entityType = BuiltInRegistries.ENTITY_TYPE.getValue(entityId);
         
         Entity e = entityType.create(currWorld, EntitySpawnReason.LOAD);
@@ -263,7 +272,6 @@ public class GlobalPortalStorage extends SavedData {
         return (Portal) e;
     }
     
-    @Override
     public @NotNull CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         if (data == null) {
             return tag;

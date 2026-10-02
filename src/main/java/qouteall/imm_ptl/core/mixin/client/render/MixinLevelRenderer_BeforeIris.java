@@ -26,8 +26,8 @@ public class MixinLevelRenderer_BeforeIris {
         FogParameters fogParameters, DeltaTracker deltaTracker, Camera camera, ProfilerFiller profilerFiller,
         Matrix4f modelView, Matrix4f matrix4f2,
         ResourceHandle<RenderTarget> resourceHandle, ResourceHandle<RenderTarget> resourceHandle2,
+        boolean bl, Frustum frustum,
         ResourceHandle<RenderTarget> resourceHandle3, ResourceHandle<RenderTarget> resourceHandle4,
-        boolean bl, Frustum frustum, ResourceHandle<RenderTarget> resourceHandle5,
         CallbackInfo ci
     ) {
         IPCGlobal.renderer.onBeginIrisTranslucentRendering(modelView);

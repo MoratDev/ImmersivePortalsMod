@@ -41,7 +41,7 @@ public class IrisCompatibilityPortalRenderer extends PortalRenderer {
     
     @Override
     public boolean replaceFrameBufferClearing() {
-        client.getMainRenderTarget().bindWrite(false);
+        MyRenderHelper.bindWrite(client.getMainRenderTarget());
         
         return false;
     }
@@ -66,15 +66,14 @@ public class IrisCompatibilityPortalRenderer extends PortalRenderer {
     public void prepareRendering() {
         deferredBuffer.prepare();
         
-        deferredBuffer.fb.setClearColor(1, 0, 0, 0);
-        deferredBuffer.fb.clear();
+        MyRenderHelper.clearColorAndDepth(deferredBuffer.fb, 1, 0, 0, 0);
         
         IPPortingLibCompat.setIsStencilEnabled(
             client.getMainRenderTarget(), false
         );
         
         // Iris now use vanilla framebuffer's depth
-        client.getMainRenderTarget().bindWrite(false);
+        MyRenderHelper.bindWrite(client.getMainRenderTarget());
     }
     
     protected void doRenderPortal(Portal portal, Matrix4f modelView) {
@@ -87,8 +86,8 @@ public class IrisCompatibilityPortalRenderer extends PortalRenderer {
             return;
         }
         
-        client.getMainRenderTarget().bindWrite(true);
-        
+        MyRenderHelper.bindWrite(client.getMainRenderTarget());
+
         PortalRendering.pushPortalLayer(portal);
         
         renderPortalContent(portal);
@@ -99,7 +98,7 @@ public class IrisCompatibilityPortalRenderer extends PortalRenderer {
         
         if (!isDebugMode) {
             // draw portal content to the deferred buffer
-            deferredBuffer.fb.bindWrite(true);
+            MyRenderHelper.bindWrite(deferredBuffer.fb);
             MyRenderHelper.drawPortalAreaWithFramebuffer(
                 portal,
                 client.getMainRenderTarget(),
@@ -108,7 +107,7 @@ public class IrisCompatibilityPortalRenderer extends PortalRenderer {
             );
         }
         else {
-            deferredBuffer.fb.bindWrite(true);
+            MyRenderHelper.bindWrite(deferredBuffer.fb);
             MyRenderHelper.drawScreenFrameBuffer(
                 client.getMainRenderTarget(),
                 true, true
@@ -116,10 +115,8 @@ public class IrisCompatibilityPortalRenderer extends PortalRenderer {
         }
         
         CHelper.disableDepthClamp();
-        
-        RenderSystem.colorMask(true, true, true, true);
-        
-        client.getMainRenderTarget().bindWrite(true);
+
+        MyRenderHelper.bindWrite(client.getMainRenderTarget());
     }
     
     @Override
@@ -142,8 +139,8 @@ public class IrisCompatibilityPortalRenderer extends PortalRenderer {
         //reset projection matrix
 //        client.gameRenderer.loadProjectionMatrix(RenderStates.basicProjectionMatrix);
         
-        deferredBuffer.fb.bindWrite(true);
-        
+        MyRenderHelper.bindWrite(deferredBuffer.fb);
+
         return PortalRenderInfo.renderAndDecideVisibility(portal, () -> {
             
             ViewAreaRenderer.renderPortalArea(
@@ -186,7 +183,7 @@ public class IrisCompatibilityPortalRenderer extends PortalRenderer {
         renderPortals(passingModelView);
         
         RenderTarget mainFrameBuffer = client.getMainRenderTarget();
-        mainFrameBuffer.bindWrite(true);
+        MyRenderHelper.bindWrite(mainFrameBuffer);
         
         MyRenderHelper.drawScreenFrameBuffer(
             deferredBuffer.fb,

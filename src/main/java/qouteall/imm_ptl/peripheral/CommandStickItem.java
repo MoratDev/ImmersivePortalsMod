@@ -1,5 +1,7 @@
 package qouteall.imm_ptl.peripheral;
 
+import java.util.function.Consumer;
+import net.minecraft.world.item.component.TooltipDisplay;
 import qouteall.imm_ptl.core.McHelper;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.resources.ResourceKey;
@@ -76,14 +78,12 @@ public class CommandStickItem extends Item {
         
         public static Data deserialize(CompoundTag tag) {
             return new Data(
-                tag.getString("command"),
-                tag.getString("nameTranslationKey"),
-                tag.getList(
-                        "descriptionTranslationKeys",
-                        StringTag.valueOf("").getId()
-                    )
+                tag.getStringOr("command", ""),
+                tag.getStringOr("nameTranslationKey", ""),
+                tag.getListOrEmpty("descriptionTranslationKeys")
                     .stream()
-                    .map(tag1 -> ((StringTag) tag1).getAsString())
+                    .filter(tag1 -> tag1 instanceof StringTag)
+                    .map(tag1 -> ((StringTag) tag1).value())
                     .collect(Collectors.toList())
             );
         }
@@ -163,9 +163,9 @@ public class CommandStickItem extends Item {
     @Override
     public void appendHoverText(
         ItemStack stack, Item.TooltipContext tooltipContext,
-        List<Component> tooltip, TooltipFlag tooltipFlag
+        TooltipDisplay tooltipDisplay, Consumer<Component> tooltip, TooltipFlag tooltipFlag
     ) {
-        super.appendHoverText(stack, tooltipContext, tooltip, tooltipFlag);
+        super.appendHoverText(stack, tooltipContext, tooltipDisplay, tooltip, tooltipFlag);
         
         Data data = stack.get(COMPONENT_TYPE);
         
@@ -176,14 +176,14 @@ public class CommandStickItem extends Item {
         Iterable<String> splitCommand = Splitter.fixedLength(40).split(data.command);
         
         for (String commandPortion : splitCommand) {
-            tooltip.add(Component.literal(commandPortion).withStyle(ChatFormatting.GOLD));
+            tooltip.accept(Component.literal(commandPortion).withStyle(ChatFormatting.GOLD));
         }
         
         for (String descriptionTranslationKey : data.descriptionTranslationKeys) {
-            tooltip.add(Component.translatable(descriptionTranslationKey).withStyle(ChatFormatting.AQUA));
+            tooltip.accept(Component.translatable(descriptionTranslationKey).withStyle(ChatFormatting.AQUA));
         }
         
-        tooltip.add(Component.translatable("imm_ptl.command_stick").withStyle(ChatFormatting.GRAY));
+        tooltip.accept(Component.translatable("imm_ptl.command_stick").withStyle(ChatFormatting.GRAY));
     }
     
     // in 1.21.1 this overrode getDescriptionId(ItemStack), which no longer exists

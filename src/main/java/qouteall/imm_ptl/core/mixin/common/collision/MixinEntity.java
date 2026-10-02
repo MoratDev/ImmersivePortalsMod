@@ -1,5 +1,6 @@
 package qouteall.imm_ptl.core.mixin.common.collision;
 
+import com.mojang.logging.LogUtils;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.core.BlockPos;
@@ -77,7 +78,9 @@ public abstract class MixinEntity implements IEEntity, ImmPtlEntityExtension {
     @Shadow
     private ChunkPos chunkPosition;
     
-    @Shadow @Final private static Logger LOGGER;
+    // Entity has no logger since 1.21.5
+    @Unique
+    private static final Logger IMM_PTL_LOGGER = LogUtils.getLogger();
     @Shadow private @Nullable BlockState inBlockState;
     @Unique
     private static final CountDownInt IMM_PTL_LOG_COUNTER = new CountDownInt(20);
@@ -104,7 +107,7 @@ public abstract class MixinEntity implements IEEntity, ImmPtlEntityExtension {
         if (attemptedMove.lengthSqr() > 60 * 60) {
             // avoid loading too many chunks in collision calculation and lag the server
             if (IMM_PTL_LOG_COUNTER.tryDecrement()) {
-                LOGGER.error(
+                IMM_PTL_LOGGER.error(
                     "[ImmPtl] Skipping collision calculation because entity moves too fast {} {} {}",
                     entity, attemptedMove, entity.level().getGameTime(),
                     new Throwable()
@@ -128,7 +131,7 @@ public abstract class MixinEntity implements IEEntity, ImmPtlEntityExtension {
         
         if (result.lengthSqr() > 20 * 20) {
             if (IMM_PTL_LOG_COUNTER.tryDecrement()) {
-                LOGGER.error(
+                IMM_PTL_LOGGER.error(
                     "[ImmPtl] cross portal collision result too large {} {} {}",
                     this, attemptedMove, result
                 );

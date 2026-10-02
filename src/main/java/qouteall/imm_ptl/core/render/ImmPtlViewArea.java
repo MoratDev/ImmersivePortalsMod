@@ -141,7 +141,7 @@ public class ImmPtlViewArea extends ViewArea {
     public void releaseAllBuffers() {
         Set<RenderSection> allActiveBuiltChunks = getAllActiveBuiltChunks();
         allActiveBuiltChunks.forEach(
-            RenderSection::releaseBuffers
+            RenderSection::reset
         );
         columnMap.clear();
         presets.clear();
@@ -361,7 +361,7 @@ public class ImmPtlViewArea extends ViewArea {
                 int num = 0;
                 while (!toDelete.isEmpty() && num < 100) {
                     RenderSection builtChunk = toDelete.poll();
-                    builtChunk.releaseBuffers();
+                    builtChunk.reset();
                     num++;
                 }
                 

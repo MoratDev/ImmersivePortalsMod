@@ -1,7 +1,6 @@
 package qouteall.imm_ptl.core.compat.iris_compatibility;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.world.phys.Vec3;
 import org.apache.commons.lang3.Validate;
@@ -85,25 +84,18 @@ public class IrisPortalRenderer extends PortalRenderer {
             deferredFb.prepare();
             IPPortingLibCompat.setIsStencilEnabled(deferredFb.fb, true);
             
-            deferredFb.fb.bindWrite(true);
-            GlStateManager._clearColor(1, 0, 1, 0);
-            GlStateManager._clearDepth(1);
-            GlStateManager._clearStencil(0);
-            GL11.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-            
-            deferredFb.fb.checkStatus();
-            
+            MyRenderHelper.clearColorAndDepth(deferredFb.fb, 1, 0, 1, 0);
+            MyRenderHelper.clearStencil(deferredFb.fb);
+
             CHelper.checkGlError();
-            
-            deferredFb.fb.unbindWrite();
         }
     
         IPPortingLibCompat.setIsStencilEnabled(client.getMainRenderTarget(), false);
         
         // Iris now use vanilla framebuffer's depth
-        client.getMainRenderTarget().bindWrite(false);
+        MyRenderHelper.bindWrite(client.getMainRenderTarget());
     }
-    
+
     private void updateNeedsPortalRendering() {
         portalRenderingNeeded = nextFramePortalRenderingNeeded;
         nextFramePortalRenderingNeeded = false;
@@ -124,12 +116,11 @@ public class IrisPortalRenderer extends PortalRenderer {
             CHelper.doCheckGlError();
             
             // copy depth from mc fb to deferred fb
-            GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, mcFrameBuffer.frameBufferId);
-            GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, deferredFbs[portalLayer].fb.frameBufferId);
-            GL30.glBlitFramebuffer(
-                0, 0, mcFrameBuffer.viewWidth, mcFrameBuffer.viewHeight,
-                0, 0, mcFrameBuffer.viewWidth, mcFrameBuffer.viewHeight,
-                GL_DEPTH_BUFFER_BIT, GL_NEAREST
+            IPIrisHelper.blitFramebuffer(
+                mcFrameBuffer, deferredFbs[portalLayer].fb,
+                mcFrameBuffer.viewWidth, mcFrameBuffer.viewHeight,
+                mcFrameBuffer.viewWidth, mcFrameBuffer.viewHeight,
+                GL_DEPTH_BUFFER_BIT
             );
             
             int errorCode = GL11.glGetError();
@@ -141,9 +132,9 @@ public class IrisPortalRenderer extends PortalRenderer {
             }
             
             initStencilForLayer(portalLayer);
-            
-            deferredFbs[portalLayer].fb.bindWrite(true);
-            
+
+            MyRenderHelper.bindWrite(deferredFbs[portalLayer].fb);
+
             glEnable(GL_STENCIL_TEST);
             glStencilFunc(GL_EQUAL, portalLayer, 0xFF);
             glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
@@ -152,10 +143,8 @@ public class IrisPortalRenderer extends PortalRenderer {
             MyRenderHelper.drawScreenFrameBuffer(mcFrameBuffer, false, true);
             
             glDisable(GL_STENCIL_TEST);
-            
-            deferredFbs[portalLayer].fb.unbindWrite();
-            
-            mcFrameBuffer.bindWrite(false);
+
+            MyRenderHelper.bindWrite(mcFrameBuffer);
         }
         
         renderPortals(modelView);
@@ -163,8 +152,8 @@ public class IrisPortalRenderer extends PortalRenderer {
         if (portalLayer == 0) {
             finish();
         }
-        
-        mcFrameBuffer.bindWrite(true);
+
+        MyRenderHelper.bindWrite(mcFrameBuffer);
     }
     
     @Override
@@ -174,20 +163,17 @@ public class IrisPortalRenderer extends PortalRenderer {
     
     private void initStencilForLayer(int portalLayer) {
         if (portalLayer == 0) {
-            deferredFbs[portalLayer].fb.bindWrite(true);
-            GlStateManager._clearStencil(0);
-            GL11.glClear(GL11.GL_STENCIL_BUFFER_BIT);
+            MyRenderHelper.bindWrite(deferredFbs[portalLayer].fb);
+            MyRenderHelper.clearStencil(deferredFbs[portalLayer].fb);
         }
         else {
             CHelper.checkGlError();
             
-            GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, deferredFbs[portalLayer - 1].fb.frameBufferId);
-            GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, deferredFbs[portalLayer].fb.frameBufferId);
-            
-            GL30.glBlitFramebuffer(
-                0, 0, deferredFbs[0].fb.viewWidth, deferredFbs[0].fb.viewHeight,
-                0, 0, deferredFbs[0].fb.viewWidth, deferredFbs[0].fb.viewHeight,
-                GL_STENCIL_BUFFER_BIT, GL_NEAREST
+            IPIrisHelper.blitFramebuffer(
+                deferredFbs[portalLayer - 1].fb, deferredFbs[portalLayer].fb,
+                deferredFbs[0].fb.viewWidth, deferredFbs[0].fb.viewHeight,
+                deferredFbs[0].fb.viewWidth, deferredFbs[0].fb.viewHeight,
+                GL_STENCIL_BUFFER_BIT
             );
             
             CHelper.checkGlError();
@@ -206,9 +192,7 @@ public class IrisPortalRenderer extends PortalRenderer {
     }
     
     private void finish() {
-        GlStateManager._colorMask(true, true, true, true);
-        
-        if (RenderStates.getRenderedPortalNum() == 0) {
+        if(RenderStates.getRenderedPortalNum() == 0) {
             return;
         }
         
@@ -217,9 +201,11 @@ public class IrisPortalRenderer extends PortalRenderer {
         }
         
         RenderTarget mainFrameBuffer = client.getMainRenderTarget();
-        mainFrameBuffer.bindWrite(true);
-        
-        deferredFbs[0].fb.blitToScreen(mainFrameBuffer.viewWidth, mainFrameBuffer.viewHeight);
+        MyRenderHelper.bindWrite(mainFrameBuffer);
+
+        // Before 1.21.5 it used RenderTarget#blitToScreen which drew to the bound framebuffer,
+        // without changing alpha.
+        MyRenderHelper.drawScreenFrameBuffer(deferredFbs[0].fb, false, false);
         
         CHelper.checkGlError();
     }
@@ -242,7 +228,7 @@ public class IrisPortalRenderer extends PortalRenderer {
         PortalRendering.pushPortalLayer(portal);
         
         // this is important
-        client.getMainRenderTarget().bindWrite(true);
+        MyRenderHelper.bindWrite(client.getMainRenderTarget());
         
         renderPortalContent(portal);
         
@@ -256,8 +242,8 @@ public class IrisPortalRenderer extends PortalRenderer {
             return;
         }
         
-        deferredFbs[outerLayer].fb.bindWrite(true);
-        
+        MyRenderHelper.bindWrite(deferredFbs[outerLayer].fb);
+
         glEnable(GL_STENCIL_TEST);
         glStencilFunc(GL_EQUAL, innerLayer, 0xFF);
         glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
@@ -269,8 +255,8 @@ public class IrisPortalRenderer extends PortalRenderer {
         );
         
         glDisable(GL_STENCIL_TEST);
-        
-        deferredFbs[outerLayer].fb.unbindWrite();
+
+        MyRenderHelper.bindWrite(client.getMainRenderTarget());
     }
     
     private boolean tryRenderViewAreaInDeferredBufferAndIncreaseStencil(
@@ -281,13 +267,11 @@ public class IrisPortalRenderer extends PortalRenderer {
         
         initStencilForLayer(portalLayer);
         
-        deferredFbs[portalLayer].fb.bindWrite(true);
-        
+        MyRenderHelper.bindWrite(deferredFbs[portalLayer].fb);
+
         GL11.glEnable(GL_STENCIL_TEST);
         GL11.glStencilFunc(GL11.GL_EQUAL, portalLayer, 0xFF);
         GL11.glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
-        
-        GlStateManager._enableDepthTest();
         
         boolean result = PortalRenderInfo.renderAndDecideVisibility(portal, () -> {
             ViewAreaRenderer.renderPortalArea(

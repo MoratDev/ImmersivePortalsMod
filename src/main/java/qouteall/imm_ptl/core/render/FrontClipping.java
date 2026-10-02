@@ -1,10 +1,9 @@
 package qouteall.imm_ptl.core.render;
 
-import com.mojang.blaze3d.shaders.Uniform;
-import com.mojang.blaze3d.systems.RenderSystem;
+import qouteall.imm_ptl.core.compat.iris_compatibility.IrisInterface;
+import com.mojang.blaze3d.opengl.Uniform;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.CompiledShaderProgram;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
@@ -14,7 +13,6 @@ import org.lwjgl.opengl.GL20;
 import qouteall.imm_ptl.core.CHelper;
 import qouteall.imm_ptl.core.IPCGlobal;
 import qouteall.imm_ptl.core.IPGlobal;
-import qouteall.imm_ptl.core.ducks.IEShader;
 import qouteall.imm_ptl.core.portal.Portal;
 import qouteall.imm_ptl.core.render.context_management.PortalRendering;
 import qouteall.q_misc_util.my_util.Plane;
@@ -172,48 +170,40 @@ public class FrontClipping {
         return activeClipPlaneAfterModelView;
     }
     
-    public static void updateClippingEquationUniformForCurrentShader(
-        boolean isRenderingEntities
-    ) {
+    /**
+     * Whether the portal view area is being drawn. See {@link ViewAreaRenderer}
+     */
+    public static boolean isDrawingPortalArea = false;
+
+    /**
+     * Called before every draw of a shader program that has the clipping equation uniform.
+     * (The transformed shaders: terrain, entity, particle and portal area.)
+     * <p>
+     * Before 1.21.5 the uniform was updated when setting the shader in RenderSystem,
+     * when rendering a terrain layer and when rendering the portal area.
+     * Outside of these it was reset to not clip.
+     * The clipping is only enabled during these renderings, so it's the same to follow
+     * {@link #isClippingEnabled}.
+     */
+    public static void loadClippingEquation(Uniform clippingEquationUniform) {
         if (!IPGlobal.enableClippingMechanism) {
             return;
         }
-        
-        CompiledShaderProgram shader = RenderSystem.getShader();
-        
-        if (shader == null) {
-            return;
+
+        // with Iris, only the portal area is clipped by this uniform.
+        // (the terrain is clipped by the uniform in Sodium's shader interface)
+        boolean shouldClip = isClippingEnabled
+            && activeClipPlaneEquationBeforeModelView != null
+            && (isDrawingPortalArea || !IrisInterface.invoker.isIrisPresent());
+
+        if (shouldClip) {
+            double[] equation = activeClipPlaneEquationBeforeModelView;
+            clippingEquationUniform.set(
+                (float) equation[0], (float) equation[1],
+                (float) equation[2], (float) equation[3]
+            );
         }
-        
-        Uniform clippingEquationUniform = ((IEShader) shader).ip_getClippingEquationUniform();
-        if (clippingEquationUniform != null) {
-            if (isClippingEnabled) {
-                double[] equation = activeClipPlaneEquationBeforeModelView;
-//                double[] equation = isRenderingEntities ? activeClipPlaneAfterModelView : activeClipPlaneEquationBeforeModelView;
-                clippingEquationUniform.set(
-                    (float) equation[0], (float) equation[1],
-                    (float) equation[2], (float) equation[3]
-                );
-            }
-            else {
-                clippingEquationUniform.set(0f, 0f, 0f, 1f);
-            }
-        }
-    }
-    
-    public static void unsetClippingUniform() {
-        if (!IPGlobal.enableClippingMechanism) {
-            return;
-        }
-        
-        CompiledShaderProgram shader = RenderSystem.getShader();
-        
-        if (shader == null) {
-            return;
-        }
-        
-        Uniform clippingEquationUniform = ((IEShader) shader).ip_getClippingEquationUniform();
-        if (clippingEquationUniform != null) {
+        else {
             clippingEquationUniform.set(0f, 0f, 0f, 1f);
         }
     }

@@ -1,51 +1,47 @@
 package qouteall.imm_ptl.core.render;
 
 import com.mojang.blaze3d.ProjectionType;
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.opengl.GlDevice;
+import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.blaze3d.opengl.GlTexture;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.shaders.Uniform;
+import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.CompiledShaderProgram;
-import net.minecraft.client.renderer.CoreShaders;
-import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.ShaderDefines;
-import net.minecraft.client.renderer.ShaderProgram;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.packs.resources.Resource;
-import net.minecraft.server.packs.resources.ResourceProvider;
+import net.minecraft.util.ARGB;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.apache.commons.lang3.Validate;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fStack;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL30;
 import qouteall.imm_ptl.core.CHelper;
 import qouteall.imm_ptl.core.ClientWorldLoader;
-import qouteall.imm_ptl.core.McHelper;
+import qouteall.imm_ptl.core.IPGlobal;
 import qouteall.imm_ptl.core.miscellaneous.IPVanillaCopy;
-import qouteall.imm_ptl.core.mixin.client.accessor.CoreShadersAccessor;
 import qouteall.imm_ptl.core.portal.Portal;
 import qouteall.imm_ptl.core.render.context_management.PortalRendering;
 import qouteall.imm_ptl.core.render.context_management.RenderStates;
 import qouteall.imm_ptl.core.render.context_management.WorldRenderInfo;
-import qouteall.q_misc_util.my_util.SignalBiArged;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.awt.image.Raster;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static org.lwjgl.opengl.GL11.GL_BACK;
@@ -54,132 +50,152 @@ import static org.lwjgl.opengl.GL11.GL_DEPTH_COMPONENT;
 import static org.lwjgl.opengl.GL11.GL_FLOAT;
 import static org.lwjgl.opengl.GL11.GL_FRONT;
 import static org.lwjgl.opengl.GL11.GL_RED;
+import static org.lwjgl.opengl.GL11.GL_STENCIL_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.glCullFace;
 import static org.lwjgl.opengl.GL11.glReadPixels;
 
 @SuppressWarnings("resource")
 public class MyRenderHelper {
-    
+
     public static final Minecraft client = Minecraft.getInstance();
-    
-    public static final ShaderProgram BLIT_SCREEN_NOBLEND = registerShaderProgram(
-        "blit_screen_noblend",
-        DefaultVertexFormat.BLIT_SCREEN
-    );
 
-    public static final ShaderProgram PORTAL_AREA = registerShaderProgram(
-        "portal_area",
-        DefaultVertexFormat.POSITION_COLOR
-    );
+    // Before 1.21.5 the shader programs were registered here.
+    // Now the shaders are referenced by the render pipelines. See IPRenderPipelines.
+    // The shader files are in assets/immersive_portals/shaders/core/
 
-    public static final ShaderProgram PORTAL_DRAW_FB_IN_AREA = registerShaderProgram(
-        "portal_draw_fb_in_area",
-        DefaultVertexFormat.POSITION_COLOR
-    );
+    public static void init() {
+        IPGlobal.PRE_GAME_RENDER_EVENT.register(MyRenderHelper::resetBoundTarget);
+    }
 
     /**
-     * Vanilla's CoreShaders#register hardcodes the "minecraft" namespace.
-     * The shader files are in assets/immersive_portals/shaders/core/
-     * Adding into the vanilla list makes it compile during resource reloading
-     * (otherwise it's lazily compiled on first use).
+     * Before 1.21.5, a framebuffer was bound by RenderTarget#bindWrite and the draw calls drew to it.
+     * Since 1.21.5 there is no bound framebuffer. Every render pass specifies its target.
+     * <p>
+     * The portal renderers were written around binding framebuffers.
+     * This keeps track of the render target that this mod draws to.
+     * It only affects this mod's own drawing (portal area, screen triangle, framebuffer drawing).
+     * The vanilla rendering goes to the main render target of {@link Minecraft}.
      */
-    private static ShaderProgram registerShaderProgram(String name, VertexFormat vertexFormat) {
-        ShaderProgram shaderProgram = new ShaderProgram(
-            McHelper.newResourceLocation("immersive_portals", "core/" + name),
-            vertexFormat, ShaderDefines.EMPTY
-        );
-        CoreShadersAccessor.ip_getPrograms().add(shaderProgram);
-        return shaderProgram;
+    @Nullable
+    private static RenderTarget boundTarget = null;
+
+    /**
+     * The replacement of RenderTarget#bindWrite for this mod's own drawing.
+     */
+    public static void bindWrite(RenderTarget target) {
+        boundTarget = target;
     }
 
-//    public static final SignalBiArged<ResourceProvider, Consumer<ShaderInstance>> loadShaderSignal =
-//        new SignalBiArged<>();
-    
-    public static void init() {
-        
-//        loadShaderSignal.connect((resourceManager, resultConsumer) -> {
-//            try {
-//                DrawFbInAreaShader shader = new DrawFbInAreaShader(
-//                    getResourceFactory(resourceManager),
-//                    "portal_draw_fb_in_area",
-//                    DefaultVertexFormat.POSITION_COLOR
-//                );
-//                resultConsumer.accept(shader);
-//                drawFbInAreaShader = shader;
-//            }
-//            catch (IOException e) {
-//                throw new RuntimeException(e);
-//            }
-//        });
-        
-//        loadShaderSignal.connect((resourceManager, resultConsumer) -> {
-//            try {
-//                ShaderInstance shader = new ShaderInstance(
-//                    getResourceFactory(resourceManager),
-//                    "portal_area",
-//                    DefaultVertexFormat.POSITION_COLOR
-//                );
-//                resultConsumer.accept(shader);
-//                portalAreaShader = shader;
-//            }
-//            catch (IOException e) {
-//                throw new RuntimeException(e);
-//            }
-//        });
-//
-//        loadShaderSignal.connect((resourceManager, resultConsumer) -> {
-//            try {
-//                ShaderInstance shader = new ShaderInstance(
-//                    getResourceFactory(resourceManager),
-//                    "blit_screen_noblend",
-//                    DefaultVertexFormat.POSITION_TEX_COLOR
-//                );
-//                resultConsumer.accept(shader);
-//                blitScreenNoBlendShader = shader;
-//            }
-//            catch (IOException e) {
-//                throw new RuntimeException(e);
-//            }
-//        });
+    /**
+     * Make this mod's own drawing go to the main render target.
+     */
+    public static void resetBoundTarget() {
+        boundTarget = null;
     }
-    
-//    // vanilla hardcodes the shader namespace to be "minecraft"
-//    private static ResourceProvider getResourceFactory(ResourceProvider resourceManager) {
-//        ResourceProvider resourceFactory = new ResourceProvider() {
-//            @Override
-//            public Optional<Resource> getResource(ResourceLocation resourceLocation) {
-//                ResourceLocation corrected = McHelper.newResourceLocation(
-//                    "immersive_portals", resourceLocation.getPath());
-//                return resourceManager.getResource(corrected);
-//            }
-//        };
-//        return resourceFactory;
-//    }
-    
-//    public static class DrawFbInAreaShader extends ShaderInstance {
-//
-//        public final Uniform uniformW;
-//        public final Uniform uniformH;
-//
-//        public DrawFbInAreaShader(
-//            ResourceProvider factory, String name, VertexFormat format
-//        ) throws IOException {
-//            super(factory, name, format);
-//
-//            uniformW = getUniform("w");
-//            uniformH = getUniform("h");
-//        }
-//
-//        void loadWidthHeight(int w, int h) {
-//            uniformW.set((float) w);
-//            uniformH.set((float) h);
-//        }
-//    }
-//
-//    public static DrawFbInAreaShader drawFbInAreaShader;
-//    public static ShaderInstance portalAreaShader;
-//    public static ShaderInstance blitScreenNoBlendShader;
-//
+
+    /**
+     * @return The render target that this mod's own drawing goes to.
+     */
+    public static RenderTarget getBoundTarget() {
+        if (boundTarget != null && boundTarget.getColorTexture() != null) {
+            return boundTarget;
+        }
+        return client.getMainRenderTarget();
+    }
+
+    /**
+     * @return The OpenGL framebuffer object that vanilla uses to draw to the render target.
+     */
+    public static int getFramebufferId(RenderTarget target) {
+        GlTexture colorTexture = (GlTexture) Objects.requireNonNull(
+            target.getColorTexture(), "The render target has no color texture"
+        );
+        GlDevice device = (GlDevice) RenderSystem.getDevice();
+        return colorTexture.getFbo(
+            device.directStateAccess(),
+            target.useDepth ? target.getDepthTexture() : null
+        );
+    }
+
+    public static int getColorTextureId(RenderTarget target) {
+        return ((GlTexture) Objects.requireNonNull(target.getColorTexture())).glId();
+    }
+
+    public static int getDepthTextureId(RenderTarget target) {
+        return ((GlTexture) Objects.requireNonNull(target.getDepthTexture())).glId();
+    }
+
+    /**
+     * Bind the framebuffer object for directly calling OpenGL (clearing stencil, blitting).
+     * The vanilla render passes bind their own framebuffer and unbind when finishes,
+     * so this binding doesn't affect normal drawing.
+     */
+    public static void bindGlFramebuffer(RenderTarget target) {
+        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, getFramebufferId(target));
+    }
+
+    public static void unbindGlFramebuffer() {
+        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, 0);
+    }
+
+    public static void clearStencil(RenderTarget target) {
+        bindGlFramebuffer(target);
+        GlStateManager._disableScissorTest();
+        GL11.glStencilMask(0xFF);
+        GL11.glClearStencil(0);
+        GlStateManager._clear(GL_STENCIL_BUFFER_BIT);
+        unbindGlFramebuffer();
+    }
+
+    public static void clearColorAndDepth(
+        RenderTarget target, float r, float g, float b, float a
+    ) {
+        if (target.getDepthTexture() == null) {
+            clearColor(target, r, g, b, a);
+            return;
+        }
+        RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+            Objects.requireNonNull(target.getColorTexture()), ARGB.colorFromFloat(a, r, g, b),
+            target.getDepthTexture(), 1.0
+        );
+    }
+
+    public static void clearColor(
+        RenderTarget target, float r, float g, float b, float a
+    ) {
+        RenderSystem.getDevice().createCommandEncoder().clearColorTexture(
+            Objects.requireNonNull(target.getColorTexture()), ARGB.colorFromFloat(a, r, g, b)
+        );
+    }
+
+    /**
+     * The vanilla shader programs always use the model view matrix and projection matrix
+     * in {@link RenderSystem}. Temporarily change them.
+     */
+    public static void withMatrices(
+        Matrix4f modelViewMatrix, Matrix4f projectionMatrix, Runnable func
+    ) {
+        Matrix4f oldProjectionMatrix = RenderSystem.getProjectionMatrix();
+        ProjectionType oldProjectionType = RenderSystem.getProjectionType();
+
+        Matrix4f newModelView = new Matrix4f(modelViewMatrix);
+        Matrix4fStack modelViewStack = RenderSystem.getModelViewStack();
+        modelViewStack.pushMatrix();
+        modelViewStack.set(newModelView);
+        RenderSystem.setProjectionMatrix(projectionMatrix, oldProjectionType);
+
+        try {
+            func.run();
+        }
+        finally {
+            modelViewStack.popMatrix();
+            RenderSystem.setProjectionMatrix(oldProjectionMatrix, oldProjectionType);
+        }
+    }
+
+    /**
+     * Draws the color of the framebuffer in the portal view area, into the bound target.
+     */
     @SuppressWarnings("SuspiciousNameCombination")
     public static void drawPortalAreaWithFramebuffer(
         Portal portal,
@@ -187,149 +203,107 @@ public class MyRenderHelper {
         Matrix4f modelViewMatrix,
         Matrix4f projectionMatrix
     ) {
+        RenderTarget target = getBoundTarget();
+        Validate.isTrue(target != textureProvider, "cannot draw a framebuffer to itself");
 
-        GlStateManager._colorMask(true, true, true, true);
-        GlStateManager._enableDepthTest();
-        GlStateManager._depthMask(true);
-        GlStateManager._viewport(0, 0, textureProvider.width, textureProvider.height);
-
-        RenderSystem.setShader(PORTAL_DRAW_FB_IN_AREA);
-        CompiledShaderProgram shader = RenderSystem.getShader();
-        
-        Objects.requireNonNull(shader, "shader is null")
-            .bindSampler("DiffuseSampler", textureProvider.getColorTextureId());
-        // the uniforms are float. Uniform#set(int) is for int uniforms
-        Objects.requireNonNull(shader.getUniform("w"), "no w")
-            .set((float) textureProvider.width);
-        Objects.requireNonNull(shader.getUniform("h"), "no h")
-            .set((float) textureProvider.height);
-
-        if (shader.MODEL_VIEW_MATRIX != null) {
-            shader.MODEL_VIEW_MATRIX.set(modelViewMatrix);
-        }
-
-        if (shader.PROJECTION_MATRIX != null) {
-            shader.PROJECTION_MATRIX.set(projectionMatrix);
-        }
-
-        // in 1.21.1 this blend mode was specified in the shader json
-        RenderSystem.enableBlend();
-        RenderSystem.blendFunc(
-            GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA
-        );
-
-        shader.apply();
-
-        ViewAreaRenderer.buildPortalViewAreaTrianglesBuffer(
+        MeshData mesh = ViewAreaRenderer.buildPortalViewAreaMesh(
             Vec3.ZERO,//fog
             portal,
             CHelper.getCurrentCameraPos(),
             RenderStates.getPartialTick()
         );
-        
-        shader.clear();
-        
-        RenderSystem.clearShader();
+
+        if (mesh == null) {
+            return;
+        }
+
+        withMatrices(modelViewMatrix, projectionMatrix, () -> {
+            IPRenderPipelines.draw(
+                IPRenderPipelines.PORTAL_DRAW_FB_IN_AREA, target, mesh,
+                renderPass -> {
+                    renderPass.bindSampler("DiffuseSampler", textureProvider.getColorTexture());
+                    renderPass.setUniform("w", (float) textureProvider.width);
+                    renderPass.setUniform("h", (float) textureProvider.height);
+                }
+            );
+        });
     }
-    
+
     public static void renderScreenTriangle() {
         renderScreenTriangle(255, 255, 255, 255);
     }
-    
+
     public static void renderScreenTriangle(Vec3 color) {
+        renderScreenTriangle(
+            color, true, true, IPRenderPipelines.DepthMode.LEQUAL
+        );
+    }
+
+    public static void renderScreenTriangle(
+        Vec3 color,
+        boolean writeColor, boolean writeDepth, IPRenderPipelines.DepthMode depthMode
+    ) {
         renderScreenTriangle(
             (int) (color.x * 255),
             (int) (color.y * 255),
             (int) (color.z * 255),
-            255
+            255,
+            writeColor, writeDepth, depthMode
         );
     }
-    
-//    public static void testOneTriangle(int r, int g, int b, int a) {
-//        ShaderInstance shader = GameRenderer.getPositionColorShader();
-//        Validate.notNull(shader);
-//
-//        Matrix4f identityMatrix = new Matrix4f();
-//        identityMatrix.identity();
-//
-//        shader.MODEL_VIEW_MATRIX.set(identityMatrix);
-//        shader.PROJECTION_MATRIX.set(identityMatrix);
-//
-//        shader.apply();
-//
-//        Tesselator tessellator = Tesselator.getInstance();
-//        BufferBuilder bufferBuilder = tessellator
-//            .begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
-//
-//        // upper triangle
-////        bufferBuilder.addVertex(1, -1, 0).setColor(r, g, b, a)
-////            ;
-////        bufferBuilder.addVertex(1, 1, 0).setColor(r, g, b, a)
-////            ;
-////        bufferBuilder.addVertex(-1, 1, 0).setColor(r, g, b, a)
-////            ;
-//
-//        // down triangle
-//        bufferBuilder.addVertex(-1, 1, 0).setColor(r, g, b, a);
-//        bufferBuilder.addVertex(-1, -1, 0).setColor(r, g, b, a);
-//        bufferBuilder.addVertex(1, -1, 0).setColor(r, g, b, a);
-//
-//        bufferBuilder.addVertex(1, 0, 0).setColor(r, g, b, a);
-//        bufferBuilder.addVertex(0, 1, 0).setColor(r, g, b, a);
-//        bufferBuilder.addVertex(-1, 0, 0).setColor(r, g, b, a);
-//
-//        BufferUploader.draw(bufferBuilder.build());
-//
-//        shader.clear();
-//    }
-    
-    /**
-     * {@link RenderTarget#blitAndBlendToScreen}
-     */
-    @IPVanillaCopy
+
     public static void renderScreenTriangle(int r, int g, int b, int a) {
-        // the same as in 1.21.1: it draws with identity matrices,
-        // without touching the model view matrix and projection matrix in RenderSystem
-        CompiledShaderProgram shader = Objects.requireNonNull(
-            RenderSystem.setShader(CoreShaders.POSITION_COLOR),
-            "Position color shader is not loaded"
+        renderScreenTriangle(r, g, b, a, true, true, IPRenderPipelines.DepthMode.LEQUAL);
+    }
+
+    /**
+     * Draw triangles that cover the whole bound target.
+     * Before 1.21.5 the color mask, depth mask and depth function were changed by OpenGL calls
+     * before calling this. Now they are in render pipeline.
+     */
+    public static void renderScreenTriangle(
+        int r, int g, int b, int a,
+        boolean writeColor, boolean writeDepth, IPRenderPipelines.DepthMode depthMode
+    ) {
+        RenderPipeline pipeline = IPRenderPipelines.getScreenTrianglePipeline(
+            writeColor, writeDepth, depthMode
         );
 
-        Matrix4f identityMatrix = new Matrix4f();
-        identityMatrix.identity();
+        BufferBuilder bufferBuilder = Tesselator.getInstance()
+            .begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
-        if (shader.MODEL_VIEW_MATRIX != null) {
-            shader.MODEL_VIEW_MATRIX.set(identityMatrix);
-        }
-        if (shader.PROJECTION_MATRIX != null) {
-            shader.PROJECTION_MATRIX.set(identityMatrix);
-        }
-        if (shader.COLOR_MODULATOR != null) {
-            shader.COLOR_MODULATOR.set(1.0f, 1.0f, 1.0f, 1.0f);
-        }
-
-        shader.apply();
-
-        Tesselator tessellator= RenderSystem.renderThreadTesselator();
-        BufferBuilder bufferBuilder = tessellator.
-            begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
-        
         bufferBuilder.addVertex(1, -1, 0).setColor(r, g, b, a);
         bufferBuilder.addVertex(1, 1, 0).setColor(r, g, b, a);
         bufferBuilder.addVertex(-1, 1, 0).setColor(r, g, b, a);
-        
+
         bufferBuilder.addVertex(-1, 1, 0).setColor(r, g, b, a);
         bufferBuilder.addVertex(-1, -1, 0).setColor(r, g, b, a);
         bufferBuilder.addVertex(1, -1, 0).setColor(r, g, b, a);
-        
-        BufferUploader.draw(bufferBuilder.buildOrThrow());
 
-        shader.clear();
-        RenderSystem.clearShader();
+        MeshData mesh = bufferBuilder.buildOrThrow();
+
+        // it draws with identity matrices and without color modulation
+        Matrix4f identityMatrix = new Matrix4f();
+
+        float[] shaderColor = RenderSystem.getShaderColor();
+        float oldR = shaderColor[0];
+        float oldG = shaderColor[1];
+        float oldB = shaderColor[2];
+        float oldA = shaderColor[3];
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+        try {
+            withMatrices(identityMatrix, identityMatrix, () -> {
+                IPRenderPipelines.draw(pipeline, getBoundTarget(), mesh, null);
+            });
+        }
+        finally {
+            RenderSystem.setShaderColor(oldR, oldG, oldB, oldA);
+        }
     }
-    
+
     /**
-     * {@link RenderTarget#blitToScreen(int, int)}
+     * Draws the framebuffer's color to the whole bound target.
      */
     public static void drawScreenFrameBuffer(
         RenderTarget textureProvider,
@@ -338,10 +312,10 @@ public class MyRenderHelper {
     ) {
         int x = 0;
         int y = 0;
-        
+
         int viewportWidth = textureProvider.viewWidth;
         int viewportHeight = textureProvider.viewHeight;
-        
+
         drawFramebufferWithCoordinatesAndDimensions(
             textureProvider, doUseAlphaBlend, doEnableModifyAlpha,
             x, y, viewportWidth, viewportHeight
@@ -373,7 +347,7 @@ public class MyRenderHelper {
                 viewportWidth, viewportHeight
         );
     }
-    
+
     public static void drawFramebufferWithBounds(
         RenderTarget textureProvider, boolean doUseAlphaBlend, boolean doEnableModifyAlpha,
         int xMin, int xMax, int yMin, int yMax
@@ -387,9 +361,10 @@ public class MyRenderHelper {
             Mth.abs(yMax - yMin)
         );
     }
-    
+
     /**
-     * {@link RenderTarget#blitToScreen(int, int)}
+     * Draws the framebuffer's color into a viewport of the bound target.
+     * {@link RenderTarget#blitAndBlendToTexture}
      */
     @SuppressWarnings("resource")
     @IPVanillaCopy
@@ -399,73 +374,39 @@ public class MyRenderHelper {
     ) {
         CHelper.checkGlError();
 
-        RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(false);
-        RenderSystem.viewport(x, textureProvider.viewHeight - viewportHeight - y, viewportWidth, viewportHeight);
-        
-        if (doUseAlphaBlend) {
-            RenderSystem.enableBlend();
-            
-            // this is used for rendering a FB onto screen when the FB contains translucent things
-            // the FB should initialize with zero color and zero alpha
-            // MC's default blend func is: color = srcColor * srcAlpha + dstColor * (1-srcAlpha)
-            // then the FB's rendered content would be fbColor = contentColor * contentAlpha
-            // we want the roughtly same effect of rendering the translucent thing directly onto current FB, so we want:
-            // color = contentColor * contentAlpha + dstColor * (1-contentAlpha)
-            // color = fbColor * 1 + dstColor * (1-contentAlpha)
-            RenderSystem.blendFuncSeparate(
-                GlStateManager.SourceFactor.ONE,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
-                GlStateManager.SourceFactor.ZERO,
-                GlStateManager.DestFactor.ONE
-            );
-        }
-        else {
-            RenderSystem.disableBlend();
-        }
-        
-        if (doEnableModifyAlpha) {
-            RenderSystem.colorMask(true, true, true, true);
-        }
-        else {
-            RenderSystem.colorMask(true, true, true, false);
-        }
-        
-        ShaderProgram shader = doUseAlphaBlend ?
-            CoreShaders.BLIT_SCREEN : BLIT_SCREEN_NOBLEND;
-        
-        Validate.notNull(shader, "shader is null");
-        
-        RenderSystem.setShader(shader);
-        CompiledShaderProgram compiledShaderProgram = RenderSystem.getShader();
-        Validate.notNull(compiledShaderProgram, "compiledShaderProgram is null");
-        
-        // the sampler of vanilla blit_screen shader is named InSampler since 1.21.2
-        compiledShaderProgram.bindSampler(
-            doUseAlphaBlend ? "InSampler" : "DiffuseSampler",
-            textureProvider.getColorTextureId()
+        RenderTarget target = getBoundTarget();
+        Validate.isTrue(target != textureProvider, "cannot draw a framebuffer to itself");
+
+        // the blend mode, depth and color mask are in the pipeline
+        RenderPipeline pipeline = IPRenderPipelines.getBlitPipeline(
+            doUseAlphaBlend, doEnableModifyAlpha
         );
 
-        BufferBuilder bufferBuilder= RenderSystem.renderThreadTesselator().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLIT_SCREEN);
-        bufferBuilder.addVertex(0.0f, 0.0f, 0.0f);
-        bufferBuilder.addVertex(1.0f, 0.0f, 0.0f);
-        bufferBuilder.addVertex(1.0f, 1.0f, 0.0f);
-        bufferBuilder.addVertex(0.0f, 1.0f, 0.0f);
-        BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
-        
-        compiledShaderProgram.clear();
-        
-        RenderSystem.clearShader();
+        RenderSystem.AutoStorageIndexBuffer sequentialBuffer =
+            RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
+        GpuBuffer indexBuffer = sequentialBuffer.getBuffer(6);
+        GpuBuffer vertexBuffer = RenderSystem.getQuadVertexBuffer();
 
-        RenderSystem.depthMask(true);
-        RenderSystem.colorMask(true, true, true, true);
-        
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        
+        try (RenderPass renderPass = IPRenderPipelines.createRenderPass(target)) {
+            // creating the render pass sets the viewport to the whole target
+            GlStateManager._viewport(
+                x, textureProvider.viewHeight - viewportHeight - y, viewportWidth, viewportHeight
+            );
+
+            renderPass.setPipeline(pipeline);
+            renderPass.setVertexBuffer(0, vertexBuffer);
+            renderPass.setIndexBuffer(indexBuffer, sequentialBuffer.type());
+            // the sampler of vanilla blit_screen shader is named InSampler since 1.21.2
+            renderPass.bindSampler(
+                doUseAlphaBlend ? "InSampler" : "DiffuseSampler",
+                textureProvider.getColorTexture()
+            );
+            renderPass.drawIndexed(0, 6);
+        }
+
         CHelper.checkGlError();
     }
-    
+
     // it will remove the light sections that are marked to be removed
     // if not, light data will cause minor memory leak
     // and wrongly remove the light data when the chunks get reloaded to client
@@ -509,11 +450,13 @@ public class MyRenderHelper {
     }
     
     public static void clearAlphaTo1(RenderTarget mcFrameBuffer) {
-        mcFrameBuffer.bindWrite(true);
-        RenderSystem.colorMask(false, false, false, true);
-        RenderSystem.clearColor(0, 0, 0, 1.0f);
-        RenderSystem.clear(GL_COLOR_BUFFER_BIT);
-        RenderSystem.colorMask(true, true, true, true);
+        bindGlFramebuffer(mcFrameBuffer);
+        GlStateManager._disableScissorTest();
+        GlStateManager._colorMask(false, false, false, true);
+        GL11.glClearColor(0, 0, 0, 1.0f);
+        GlStateManager._clear(GL_COLOR_BUFFER_BIT);
+        GlStateManager._colorMask(true, true, true, true);
+        unbindGlFramebuffer();
     }
     
     public static void restoreViewPort() {
@@ -562,11 +505,13 @@ public class MyRenderHelper {
         ByteBuffer directBuffer = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.LITTLE_ENDIAN);
         
         FloatBuffer floatBuffer = directBuffer.asFloatBuffer();
-        
+
+        bindGlFramebuffer(client.getMainRenderTarget());
         glReadPixels(
             0, 0, width, height,
             GL_DEPTH_COMPONENT, GL_FLOAT, floatBuffer
         );
+        unbindGlFramebuffer();
         
         float[] data = new float[width * height];
         
@@ -613,11 +558,13 @@ public class MyRenderHelper {
         ByteBuffer directBuffer = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.LITTLE_ENDIAN);
         
         FloatBuffer floatBuffer = directBuffer.asFloatBuffer();
-        
+
+        bindGlFramebuffer(client.getMainRenderTarget());
         glReadPixels(
             0, 0, width, height,
             GL_RED, GL_FLOAT, floatBuffer
         );
+        unbindGlFramebuffer();
         
         float[] data = new float[width * height];
         

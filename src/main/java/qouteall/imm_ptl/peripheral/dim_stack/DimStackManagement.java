@@ -149,8 +149,7 @@ public class DimStackManagement {
                         if (blockState.getBlock() == Blocks.BEDROCK) {
                             chunk.setBlockState(
                                 mutable,
-                                replacement,
-                                false
+                                replacement
                             );
                         }
                     }

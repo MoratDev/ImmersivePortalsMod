@@ -1,7 +1,6 @@
 package qouteall.imm_ptl.core.mixin.client.render.optimization;
 
-import com.mojang.blaze3d.buffers.BufferUsage;
-import com.mojang.blaze3d.vertex.VertexBuffer;
+import com.mojang.blaze3d.buffers.GpuBuffer;
 import net.minecraft.client.CloudStatus;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -9,10 +8,7 @@ import net.minecraft.client.renderer.CloudRenderer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
-import org.joml.Matrix4f;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -50,13 +46,13 @@ public abstract class MixinCloudRenderer {
     @Nullable
     private CloudRenderer.TextureData texture;
 
+    // since 1.21.5 the vertex buffer is nullable. it's created when building the mesh
     @Shadow
-    @Final
-    @Mutable
-    private VertexBuffer vertexBuffer;
+    @Nullable
+    private GpuBuffer vertexBuffer;
 
     @Shadow
-    private boolean vertexBufferEmpty;
+    private int indexCount;
 
     @Inject(
         method = "render",
@@ -64,7 +60,6 @@ public abstract class MixinCloudRenderer {
     )
     private void onBeginRenderClouds(
         int cloudColor, CloudStatus cloudStatus, float cloudHeight,
-        Matrix4f frustumMatrix, Matrix4f projectionMatrix,
         Vec3 cameraPosition, float ticks, CallbackInfo ci
     ) {
         if (RenderStates.getRenderedPortalNum() == 0) {
@@ -82,7 +77,6 @@ public abstract class MixinCloudRenderer {
     )
     private void onEndRenderClouds(
         int cloudColor, CloudStatus cloudStatus, float cloudHeight,
-        Matrix4f frustumMatrix, Matrix4f projectionMatrix,
         Vec3 cameraPosition, float ticks, CallbackInfo ci
     ) {
         if (RenderStates.getRenderedPortalNum() == 0) {
@@ -105,24 +99,28 @@ public abstract class MixinCloudRenderer {
         context.cloudStatus = prevType;
         context.dimension = level.dimension();
         context.cloudsBuffer = vertexBuffer;
-        context.cloudsBufferEmpty = vertexBufferEmpty;
+        context.cloudsIndexCount = indexCount;
 
         // the buffer is now owned by the context
-        vertexBuffer = new VertexBuffer(BufferUsage.STATIC_WRITE);
+        // vanilla will create a new buffer when rebuilding
+        vertexBuffer = null;
+        indexCount = 0;
         needsRebuild = true;
     }
 
     @Unique
     private void ip_loadCloudContext(CloudContext context) {
         // this buffer does not belong to any context
-        vertexBuffer.close();
+        if (vertexBuffer != null) {
+            vertexBuffer.close();
+        }
 
         prevCellX = context.cellX;
         prevCellZ = context.cellZ;
         prevRelativeCameraPos = CloudRenderer.RelativeCameraPos.values()[context.relativeCameraPos];
         prevType = context.cloudStatus;
         vertexBuffer = context.cloudsBuffer;
-        vertexBufferEmpty = context.cloudsBufferEmpty;
+        indexCount = context.cloudsIndexCount;
 
         needsRebuild = false;
     }

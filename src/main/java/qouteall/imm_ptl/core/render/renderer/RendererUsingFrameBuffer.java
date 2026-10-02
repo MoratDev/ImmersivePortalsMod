@@ -1,7 +1,6 @@
 package qouteall.imm_ptl.core.render.renderer;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
@@ -41,9 +40,9 @@ public class RendererUsingFrameBuffer extends PortalRenderer {
     @Override
     public void prepareRendering() {
         secondaryFrameBuffer.prepare();
-        
-        GlStateManager._enableDepthTest();
-        
+
+        MyRenderHelper.bindWrite(client.getMainRenderTarget());
+
         GL11.glDisable(GL11.GL_STENCIL_TEST);
     
         IPPortingLibCompat.setIsStencilEnabled(client.getMainRenderTarget(), false);
@@ -68,19 +67,15 @@ public class RendererUsingFrameBuffer extends PortalRenderer {
         RenderTarget oldFrameBuffer = client.getMainRenderTarget();
         
         ((IEMinecraftClient) client).ip_setFrameBuffer(secondaryFrameBuffer.fb);
-        secondaryFrameBuffer.fb.bindWrite(true);
-        
-        GlStateManager._clearColor(1, 0, 1, 1);
-        GlStateManager._clearDepth(1);
-        GlStateManager._clear(
-            GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT
-        );
+        MyRenderHelper.bindWrite(secondaryFrameBuffer.fb);
+
+        MyRenderHelper.clearColorAndDepth(secondaryFrameBuffer.fb, 1, 0, 1, 1);
         GL11.glDisable(GL11.GL_STENCIL_TEST);
         
         renderPortalContent(portal);
         
         ((IEMinecraftClient) client).ip_setFrameBuffer(oldFrameBuffer);
-        oldFrameBuffer.bindWrite(true);
+        MyRenderHelper.bindWrite(oldFrameBuffer);
         
         PortalRendering.popPortalLayer();
         

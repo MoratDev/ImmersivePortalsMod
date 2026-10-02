@@ -1,6 +1,6 @@
 package qouteall.imm_ptl.core.render.renderer;
 
-import com.mojang.blaze3d.platform.GlStateManager;
+import qouteall.imm_ptl.core.render.IPRenderPipelines;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.profiling.Profiler;
@@ -37,9 +37,11 @@ public class RendererUsingStencil extends PortalRenderer {
         boolean skipClearing = WorldRenderInfo.isRendering();
         if (skipClearing) {
             if (WorldRenderInfo.getTopRenderInfo().doRenderSky) {
-                RenderSystem.depthMask(false);
-                MyRenderHelper.renderScreenTriangle(FogRendererContext.getCurrentFogColor.get());
-                RenderSystem.depthMask(true);
+                // does not write depth
+                MyRenderHelper.renderScreenTriangle(
+                    FogRendererContext.getCurrentFogColor.get(),
+                    true, false, IPRenderPipelines.DepthMode.LEQUAL
+                );
             }
         }
         return skipClearing;
@@ -51,13 +53,11 @@ public class RendererUsingStencil extends PortalRenderer {
     }
     
     protected void doPortalRendering(Matrix4f modelView) {
-        // NOTE do not use glDisable(GL_DEPTH_TEST),
-        // use GlStateManager.disableDepthTest() instead
-        // because GlStateManager will cache its state.
-        // Do not make its cache not synchronized
-        RenderSystem.enableDepthTest();
-        RenderSystem.depthMask(true);
-        
+        // NOTE Since 1.21.5 the depth test, depth mask, color mask, blending and face culling
+        // are specified by render pipelines. See IPRenderPipelines.
+        // Do not directly change them with OpenGL, because GlStateManager caches these states.
+        // The stencil states are not managed by vanilla.
+
         Profiler.get().popPush("render_portal_total");
         renderPortals(modelView);
         if (PortalRendering.isRendering()) {
@@ -93,12 +93,10 @@ public class RendererUsingStencil extends PortalRenderer {
             }
         }
         
-        client.getMainRenderTarget().bindWrite(false);
-        
-        GL11.glClearStencil(0);
-        GL11.glClear(GL11.GL_STENCIL_BUFFER_BIT);
-        
-        GlStateManager._enableDepthTest();
+        MyRenderHelper.bindWrite(client.getMainRenderTarget());
+
+        MyRenderHelper.clearStencil(client.getMainRenderTarget());
+
         GL11.glEnable(GL_STENCIL_TEST);
         
     }
@@ -113,7 +111,6 @@ public class RendererUsingStencil extends PortalRenderer {
         GL11.glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
         
         GL11.glDisable(GL_STENCIL_TEST);
-        GlStateManager._enableDepthTest();
     }
     
     protected void doRenderPortal(
@@ -199,28 +196,19 @@ public class RendererUsingStencil extends PortalRenderer {
     private void clearDepthOfThePortalViewArea(
         Portal portal
     ) {
-        GlStateManager._enableDepthTest();
-        GlStateManager._depthMask(true);
-        
         setStencilStateForWorldRendering();
-        
-        //do not manipulate color buffer
-        GL11.glColorMask(false, false, false, false);
-        
-        //save the state
-        int originalDepthFunc = GL11.glGetInteger(GL_DEPTH_FUNC);
-        
-        //always passes depth test
-        GL11.glDepthFunc(GL_ALWAYS);
-        
+
         //the pixel's depth will be 1, which is the furthest
         GL11.glDepthRange(1, 1);
-        
-        MyRenderHelper.renderScreenTriangle();
-        
+
+        //do not manipulate color buffer
+        //always passes depth test
+        MyRenderHelper.renderScreenTriangle(
+            255, 255, 255, 255,
+            false, true, IPRenderPipelines.DepthMode.ALWAYS
+        );
+
         //retrieve the state
-        GL11.glColorMask(true, true, true, true);
-        GL11.glDepthFunc(originalDepthFunc);
         GL11.glDepthRange(0, 1);
     }
     
@@ -230,27 +218,21 @@ public class RendererUsingStencil extends PortalRenderer {
     ) {
         setStencilLimitation(portalStencilValue);
         
-        int originalDepthFunc = GL11.glGetInteger(GL_DEPTH_FUNC);
-        
-        GL11.glDepthFunc(GL_ALWAYS);
-        
+        // always passes depth test
         ViewAreaRenderer.renderPortalArea(
             portal, Vec3.ZERO,
             modelView,
             RenderSystem.getProjectionMatrix(),
             false, false,
             true,
-            true // important: should clip, otherwise depth will be abnormal when viewing scale box from inside in portal
+            true, // important: should clip, otherwise depth will be abnormal when viewing scale box from inside in portal
+            IPRenderPipelines.DepthMode.ALWAYS
         );
-        
-        GL11.glDepthFunc(originalDepthFunc);
     }
     
     public static void clampStencilValue(
         int maximumValue
     ) {
-        GlStateManager._depthMask(true);
-        
         //NOTE GL_GREATER means ref > stencil
         //GL_LESS means ref < stencil
         
@@ -261,20 +243,12 @@ public class RendererUsingStencil extends PortalRenderer {
         GL11.glStencilOp(GL_KEEP, GL_REPLACE, GL_REPLACE);
         
         //do not manipulate the depth buffer
-        GL11.glDepthMask(false);
-        
         //do not manipulate the color buffer
-        GL11.glColorMask(false, false, false, false);
-        
-        GlStateManager._disableDepthTest();
-        
-        MyRenderHelper.renderScreenTriangle();
-        
-        GL11.glDepthMask(true);
-        
-        GL11.glColorMask(true, true, true, true);
-        
-        GlStateManager._enableDepthTest();
+        //no depth test
+        MyRenderHelper.renderScreenTriangle(
+            255, 255, 255, 255,
+            false, false, IPRenderPipelines.DepthMode.DISABLED
+        );
     }
     
     private void setStencilStateForWorldRendering() {

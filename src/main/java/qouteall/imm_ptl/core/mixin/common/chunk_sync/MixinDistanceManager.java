@@ -1,5 +1,7 @@
 package qouteall.imm_ptl.core.mixin.common.chunk_sync;
 
+import java.util.List;
+import net.minecraft.world.level.TicketStorage;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import it.unimi.dsi.fastutil.objects.ObjectSet;
@@ -9,7 +11,6 @@ import net.minecraft.server.level.DistanceManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.Ticket;
-import net.minecraft.util.SortedArraySet;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -30,7 +31,8 @@ public abstract class MixinDistanceManager implements IEDistanceManager {
     private Long2ObjectMap<ObjectSet<ServerPlayer>> playersPerChunk;
     
     @Shadow
-    protected abstract SortedArraySet<Ticket<?>> getTickets(long position);
+    @Final
+    TicketStorage ticketStorage;
     
     // avoid NPE
     @Inject(method = "Lnet/minecraft/server/level/DistanceManager;removePlayer(Lnet/minecraft/core/SectionPos;Lnet/minecraft/server/level/ServerPlayer;)V", at = @At("HEAD"))
@@ -55,7 +57,7 @@ public abstract class MixinDistanceManager implements IEDistanceManager {
     }
     
     @Override
-    public SortedArraySet<Ticket<?>> portal_getTicketSet(long chunkPos) {
-        return getTickets(chunkPos);
+    public List<Ticket> portal_getTicketSet(long chunkPos) {
+        return ticketStorage.getTickets(chunkPos);
     }
 }

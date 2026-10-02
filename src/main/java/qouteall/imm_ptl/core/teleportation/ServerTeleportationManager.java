@@ -743,7 +743,7 @@ public class ServerTeleportationManager {
         E entity, ResourceKey<Level> targetDim, Vec3 targetPos
     ) {
         if (entity.level().dimension() == targetDim) {
-            entity.moveTo(
+            entity.snapTo(
                 targetPos.x,
                 targetPos.y,
                 targetPos.z,

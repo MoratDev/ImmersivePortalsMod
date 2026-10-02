@@ -1,156 +1,112 @@
 package qouteall.imm_ptl.core.mixin.client.render.framebuffer;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import net.minecraft.client.Minecraft;
-import org.lwjgl.opengl.ARBFramebufferObject;
-import org.lwjgl.opengl.GL30;
-import org.lwjgl.opengl.GL30C;
+import com.mojang.blaze3d.systems.GpuDevice;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.textures.GpuTexture;
+import com.mojang.blaze3d.textures.TextureFormat;
+import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArgs;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
 import qouteall.imm_ptl.core.CHelper;
-import qouteall.imm_ptl.core.IPCGlobal;
 import qouteall.imm_ptl.core.ducks.IEFrameBuffer;
+import qouteall.imm_ptl.core.render.DepthStencilTextures;
 
-import java.util.Objects;
-
-import static org.lwjgl.opengl.GL11.GL_DEPTH_COMPONENT;
-import static org.lwjgl.opengl.GL30.GL_DEPTH24_STENCIL8;
-import static org.lwjgl.opengl.GL30.GL_DEPTH32F_STENCIL8;
-import static org.lwjgl.opengl.GL30.GL_FLOAT_32_UNSIGNED_INT_24_8_REV;
+import java.util.function.Supplier;
 
 @Mixin(RenderTarget.class)
 public abstract class MixinRenderTarget implements IEFrameBuffer {
-    
+
     @Unique
-    private boolean isStencilBufferEnabled;
-    
+    private boolean isStencilBufferEnabled = false;
+
     @Shadow
     public int width;
     @Shadow
     public int height;
-    
-    
+
+    @Shadow
+    protected @Nullable GpuTexture colorTexture;
+
+    @Shadow
+    protected @Nullable GpuTexture depthTexture;
+
     @Shadow
     public abstract void resize(int width, int height);
-    
-    @Inject(method = "<init>", at = @At("RETURN"))
-    private void onInit(
-        boolean useDepth,
-        CallbackInfo ci
+
+    // Before 1.21.5 it modified the arguments of glTexImage2D and glFramebufferTexture2D here.
+    // Now the texture is created by the GPU device. See DepthStencilTextures
+    @WrapOperation(
+        method = "createBuffers",
+        at = @At(
+            value = "INVOKE",
+            target = "Lcom/mojang/blaze3d/systems/GpuDevice;createTexture(Ljava/util/function/Supplier;Lcom/mojang/blaze3d/textures/TextureFormat;III)Lcom/mojang/blaze3d/textures/GpuTexture;",
+            remap = false
+        )
+    )
+    private GpuTexture wrapCreateTexture(
+        GpuDevice device, Supplier<String> label, TextureFormat format,
+        int width, int height, int mipLevels,
+        Operation<GpuTexture> original
     ) {
-        isStencilBufferEnabled = false;
-    }
-    
-    @ModifyArgs(
-        method = "createBuffers",
-        at = @At(
-            value = "INVOKE",
-            target = "Lcom/mojang/blaze3d/platform/GlStateManager;_texImage2D(IIIIIIIILjava/nio/IntBuffer;)V",
-            remap = false
-        )
-    )
-    private void modifyTexImage2D(Args args) {
-        if (Objects.equals(args.get(2), GL_DEPTH_COMPONENT)) {
-            if (isStencilBufferEnabled) {
-                args.set(2, IPCGlobal.useSeparatedStencilFormat ? GL_DEPTH32F_STENCIL8 : GL_DEPTH24_STENCIL8);
-                args.set(6, ARBFramebufferObject.GL_DEPTH_STENCIL);
-                args.set(7, IPCGlobal.useSeparatedStencilFormat ? GL_FLOAT_32_UNSIGNED_INT_24_8_REV : GL30.GL_UNSIGNED_INT_24_8);
-            }
+        if (isStencilBufferEnabled && format == TextureFormat.DEPTH32) {
+            return DepthStencilTextures.createDepthStencilTexture(
+                () -> original.call(device, label, format, width, height, mipLevels)
+            );
         }
+
+        return original.call(device, label, format, width, height, mipLevels);
     }
 
-//    @Redirect(
-//        method = "Lcom/mojang/blaze3d/pipeline/RenderTarget;createBuffers(IIZ)V",
-//        at = @At(
-//            value = "INVOKE",
-//            target = "Lcom/mojang/blaze3d/platform/GlStateManager;_texImage2D(IIIIIIIILjava/nio/IntBuffer;)V",
-//            remap = false
-//        )
-//    )
-//    private void redirectTexImage2d(
-//        int target, int level, int internalFormat,
-//        int width, int height,
-//        int border, int format, int type,
-//        IntBuffer pixels
-//    ) {
-//        if (internalFormat == GL_DEPTH_COMPONENT && isStencilBufferEnabled) {
-//            GlStateManager._texImage2D(
-//                target,
-//                level,
-//                IPCGlobal.useAnotherStencilFormat ? GL_DEPTH32F_STENCIL8 : GL_DEPTH24_STENCIL8,
-//                width,
-//                height,
-//                border,
-//                ARBFramebufferObject.GL_DEPTH_STENCIL,
-//                IPCGlobal.useAnotherStencilFormat ? GL_FLOAT_32_UNSIGNED_INT_24_8_REV : GL30.GL_UNSIGNED_INT_24_8,
-//                pixels
-//            );
-//        }
-//        else {
-//            GlStateManager._texImage2D(
-//                target, level, internalFormat, width, height,
-//                border, format, type, pixels
-//            );
-//        }
-//    }
-    
-    @ModifyArgs(
-        method = "createBuffers",
-        at = @At(
-            value = "INVOKE",
-            target = "Lcom/mojang/blaze3d/platform/GlStateManager;_glFramebufferTexture2D(IIIII)V",
-            remap = false
-        )
-    )
-    private void modifyFrameBufferTexture2D(Args args) {
-        if (Objects.equals(args.get(1), GL30C.GL_DEPTH_ATTACHMENT)) {
-            if (isStencilBufferEnabled) {
-                args.set(1, GL30.GL_DEPTH_STENCIL_ATTACHMENT);
-            }
-        }
-    }
-
-//    @Redirect(
-//        method = "Lcom/mojang/blaze3d/pipeline/RenderTarget;createBuffers(IIZ)V",
-//        at = @At(
-//            value = "INVOKE",
-//            target = "Lcom/mojang/blaze3d/platform/GlStateManager;_glFramebufferTexture2D(IIIII)V",
-//            remap = false
-//        )
-//    )
-//    private void redirectFrameBufferTexture2d(
-//        int target, int attachment, int textureTarget, int texture, int level
-//    ) {
-//
-//        if (attachment == GL30C.GL_DEPTH_ATTACHMENT && isStencilBufferEnabled) {
-//            GlStateManager._glFramebufferTexture2D(
-//                target, GL30.GL_DEPTH_STENCIL_ATTACHMENT, textureTarget, texture, level
-//            );
-//        }
-//        else {
-//            GlStateManager._glFramebufferTexture2D(target, attachment, textureTarget, texture, level);
-//        }
-//    }
-    
+    /**
+     * Vanilla copies the depth by blitting the framebuffer, which requires the same depth format.
+     * Before 1.21.5 the result was just not checked.
+     * Now vanilla throws exception when the blit gives an OpenGL error.
+     * <p>
+     * This is used by the render targets of fabulous graphics, which copy the depth from the main target.
+     * When they copy the depth, they have only been cleared.
+     * So make this render target to have the same depth format as the source.
+     */
     @Inject(
-        method = "Lcom/mojang/blaze3d/pipeline/RenderTarget;copyDepthFrom(Lcom/mojang/blaze3d/pipeline/RenderTarget;)V",
+        method = "copyDepthFrom",
+        at = @At("HEAD")
+    )
+    private void onCopyDepthFrom(RenderTarget otherTarget, CallbackInfo ci) {
+        boolean otherHasStencil = DepthStencilTextures.hasStencil(otherTarget.getDepthTexture());
+        boolean thisHasStencil = DepthStencilTextures.hasStencil(depthTexture);
+
+        if (depthTexture != null && otherTarget.getDepthTexture() != null
+            && otherHasStencil != thisHasStencil
+        ) {
+            isStencilBufferEnabled = otherHasStencil;
+            resize(width, height);
+
+            if (colorTexture != null) {
+                // it was cleared with transparent black
+                RenderSystem.getDevice().createCommandEncoder().clearColorTexture(colorTexture, 0);
+            }
+        }
+    }
+
+    @Inject(
+        method = "copyDepthFrom",
         at = @At("RETURN")
     )
     private void onCopiedDepthFrom(RenderTarget framebuffer, CallbackInfo ci) {
         CHelper.checkGlError();
     }
-    
+
     @Override
     public boolean ip_getIsStencilBufferEnabled() {
         return isStencilBufferEnabled;
     }
-    
+
     @Override
     public void ip_setIsStencilBufferEnabledAndReload(boolean cond) {
         if (isStencilBufferEnabled != cond) {

@@ -711,12 +711,7 @@ public class ClientTeleportationManager {
             
             // both of them are important for Minecart
             entity.setPos(pos);
-            entity.lerpTo(
-                pos.x, pos.y, pos.z,
-                entity.getYRot(), entity.getXRot(),
-                0
-            );
-            entity.setPos(pos);
+            McHelper.cancelPositionInterpolation(entity);
         }
     }
 }
