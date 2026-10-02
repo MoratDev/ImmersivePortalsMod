@@ -60,14 +60,7 @@ public class ImmPtlClientGameTest implements FabricClientGameTest {
 
     @Override
     public void runTest(ClientGameTestContext context) {
-        // Mixins are applied when the target class loads.
-        // This loads all target classes, so that every mixin of every loaded config gets applied and checked.
-        LOGGER.info("[ImmPtlTest] auditing mixins");
-        // on the client thread, because some classes access Minecraft.getInstance() in static initializer
-        context.runOnClient(client -> MixinEnvironment.getCurrentEnvironment().audit());
-        LOGGER.info("[ImmPtlTest] mixin audit finished");
-
-        // the cloud rendering with portals has its own code path
+        // the cloud renderingwith portals has its own code path
         context.runOnClient(client -> client.options.cloudStatus().set(CloudStatus.FANCY));
 
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
@@ -117,6 +110,15 @@ public class ImmPtlClientGameTest implements FabricClientGameTest {
                 FabricLoader.getInstance().getGameDir().toAbsolutePath()
             );
         }
+
+        // Mixins are applied when the target class loads.
+        // This loads all target classes, so that every mixin of every loaded config gets applied and checked.
+        // It's done at the end, because it also initializes the classes.
+        // Doing it at the beginning hides the bugs that depend on the class initialization order of a normal launch.
+        LOGGER.info("[ImmPtlTest] auditing mixins");
+        // on the client thread, because some classes access Minecraft.getInstance() in static initializer
+        context.runOnClient(client -> MixinEnvironment.getCurrentEnvironment().audit());
+        LOGGER.info("[ImmPtlTest] mixin audit finished");
 
         if (!failures.isEmpty()) {
             throw new AssertionError(

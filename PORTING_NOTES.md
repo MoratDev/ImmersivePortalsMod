@@ -262,6 +262,16 @@ Environment: Windows 10, JDK 21, NVIDIA RTX 2060 SUPER.
 | Client game test, production (`runProductionClientGameTest`, official client jar + intermediary + remapped jar) | **ALL PASSED**, 60 checks (16 on a dedicated server), vanilla renderer. |
 | Refmap check of the remapped jar | 0 Mojang-named mixin strings without a refmap entry. |
 
+### Fix after the first release: crash when entering a world
+
+The first released jar crashed with a `NullPointerException` in `FogRendererContext.update` when entering a world.
+The fog context was only created by the static initializer that the mixin adds into `FogRenderer`.
+Since 1.21.2 vanilla first uses `FogRenderer` when it renders the world, which is after the mod first uses the fog context.
+`FogRendererContext.ensureInitialized()` now initializes `FogRenderer` on demand.
+
+The game test did not find it because it ran `MixinEnvironment.audit()` first, and the audit initializes every class.
+The audit now runs at the end of the test, so the world is entered with the class initialization order of a normal launch.
+
 ### The client game test
 
 `src/gametest` is a small test mod that uses Fabric's client game test API. It starts a real client and
